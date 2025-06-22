@@ -41,19 +41,6 @@ const Sidebar = () => {
             </div>
             {exploreOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </Button>
-          {exploreOpen && (
-            <div className="ml-4 mt-1 space-y-1">
-              <Link
-                href="/"
-                className="block px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-md bg-slate-100 font-medium"
-              >
-                Designs
-              </Link>
-              <Link href="#" className="block px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-md">
-                Animations
-              </Link>
-            </div>
-          )}
         </div>
 
         <Link
@@ -85,7 +72,7 @@ const Sidebar = () => {
         </Link>
 
         <div className="pt-4">
-          <h2 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">My Studio</h2>
+          <h2 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">My Creations</h2>
           <Link
             href="#" // This link would ideally go to a page listing all studio items
             className="flex items-center space-x-2 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-md"
@@ -99,20 +86,6 @@ const Sidebar = () => {
           >
             <FolderPlus className="w-5 h-5 text-slate-500" />
             <span>New Folder</span>
-          </Link>
-          <Link
-            href="#"
-            className="flex items-center space-x-2 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-md"
-          >
-            <Folder className="w-5 h-5 text-orange-500" />
-            <span>Untitled Folder</span>
-          </Link>
-          <Link
-            href="#"
-            className="flex items-center space-x-2 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-md"
-          >
-            <Cube className="w-5 h-5 text-green-500" />
-            <span>3D Icons</span>
           </Link>
         </div>
       </nav>

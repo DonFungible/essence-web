@@ -5,8 +5,15 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "dev:tunnel": "concurrently \"npm run dev\" \"npm run tunnel\"",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "tunnel": "node scripts/tunnel.js",
+    "tunnel:simple": "ngrok http 3000",
+    "tunnel:custom": "ngrok http 3000 --domain=lark-humorous-globally.ngrok-free.app",
+    "test:webhook": "node scripts/test-webhook.js",
+    "test:webhook:success": "node scripts/test-webhook.js succeeded",
+    "test:webhook:failed": "node scripts/test-webhook.js failed"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -69,6 +76,8 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.1.2",
+    "ngrok": "5.0.0-beta.2",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"

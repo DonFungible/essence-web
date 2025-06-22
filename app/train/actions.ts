@@ -21,6 +21,7 @@ const SUPABASE_BUCKET_NAME = "models"
 
 const replicate = new Replicate({ auth: REPLICATE_API_TOKEN })
 
+// Only need Supabase for file storage, not for training_jobs table
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
 })
@@ -42,58 +43,34 @@ const trainingInputSchema = z.object({
   captioning: z.enum(["captioning-disabled", "automatic", "captioning-enabled"]).default("captioning-disabled"),
 })
 
-// This function will run in the background
-async function submitToReplicateAndUpdateDb(
-  ourInternalJobId: string,
+// Submit training job directly to Replicate
+async function submitToReplicate(
   replicateApiInput: z.infer<typeof trainingInputSchema>,
   webhookUrl: string,
+  metadata: any
 ) {
-  try {
-    console.log(`[BG_REPLICATE_SUBMITTER] For DB Job ID ${ourInternalJobId}: Submitting to Replicate...`)
-    console.log(`[BG_REPLICATE_SUBMITTER] Input:`, replicateApiInput)
+  console.log(`[REPLICATE_SUBMITTER] Submitting to Replicate...`)
+  console.log(`[REPLICATE_SUBMITTER] Input:`, replicateApiInput)
+  console.log(`[REPLICATE_SUBMITTER] Webhook URL:`, webhookUrl)
 
-    const jobOutput = await replicate.run("black-forest-labs/flux-pro-trainer", {
-      input: replicateApiInput,
-      webhook: webhookUrl,
-      webhook_events_filter: ["start", "output", "logs", "completed"],
-    })
+  const prediction = await replicate.predictions.create({
+    model: "black-forest-labs/flux-pro-trainer",
+    input: replicateApiInput,
+    webhook: webhookUrl,
+    webhook_events_filter: ["start", "output", "logs", "completed"],
+  })
 
-    if (typeof jobOutput !== "string" || !jobOutput) {
-      console.error(
-        `[BG_REPLICATE_SUBMITTER] For DB Job ID ${ourInternalJobId}: Replicate did not return a valid job ID string. Output:`,
-        jobOutput,
-      )
-      throw new Error("Replicate did not return a valid job ID for training.")
-    }
-    const replicateJobId = jobOutput
-    console.log(
-      `[BG_REPLICATE_SUBMITTER] For DB Job ID ${ourInternalJobId}: Replicate submission successful. Replicate Job ID: ${replicateJobId}`,
-    )
-
-    await supabaseAdmin
-      .from("training_jobs")
-      .update({
-        replicate_job_id: replicateJobId,
-        status: "SUBMITTED_TO_REPLICATE", // New status indicating successful submission
-      })
-      .eq("id", ourInternalJobId)
-  } catch (error: any) {
-    console.error(
-      `[BG_REPLICATE_SUBMITTER] For DB Job ID ${ourInternalJobId}: Error submitting to Replicate or updating DB:`,
-      error,
-    )
-    await supabaseAdmin
-      .from("training_jobs")
-      .update({
-        status: "REPLICATE_SUBMISSION_FAILED",
-        error_message: error.message || "Failed to submit job to Replicate.",
-      })
-      .eq("id", ourInternalJobId)
+  console.log(`[REPLICATE_SUBMITTER] Prediction created with ID: ${prediction.id}`)
+  
+  return {
+    replicateJobId: prediction.id,
+    status: prediction.status,
+    prediction: prediction
   }
 }
 
 export async function startTrainingJob(formData: FormData) {
-  console.log("[TRAIN_ACTION] Initiated. Client will get immediate response after DB insert.")
+  console.log("[TRAIN_ACTION] Starting training job submission...")
 
   const fileValue = formData.get("file")
   if (!isFileLike(fileValue) || fileValue.size === 0) {
@@ -108,12 +85,11 @@ export async function startTrainingJob(formData: FormData) {
     return { success: false, error: "Trigger word is required." }
   }
 
-  let ourInternalJobId: string
-  let publicUrl: string // Needed for the background task
-
   try {
     /* ---------- 1. Upload dataset to Supabase ---------- */
     let storagePath: string
+    let publicUrl: string
+
     try {
       const originalName = file.name
       const lastDot = originalName.lastIndexOf(".")
@@ -134,78 +110,35 @@ export async function startTrainingJob(formData: FormData) {
 
       const { data: urlData } = supabaseAdmin.storage.from(SUPABASE_BUCKET_NAME).getPublicUrl(storagePath)
       if (!urlData?.publicUrl) throw new Error("Could not generate public URL for uploaded dataset.")
-      publicUrl = urlData.publicUrl // Assign to outer scope variable
+      publicUrl = urlData.publicUrl
       console.log(`[TRAIN_ACTION] Dataset uploaded to Supabase: ${publicUrl}`)
     } catch (err) {
       console.error("[TRAIN_ACTION] Supabase upload failed:", err)
       return { success: false, error: "Failed to upload dataset to Supabase. Check service keys & bucket." }
     }
 
-    /* ---------- 2. Create initial DB record ---------- */
-    const allInputParameters = Object.fromEntries(formData.entries())
-    delete allInputParameters.file // Don't store the file File object
-
-    const { data: dbJob, error: dbErr } = await supabaseAdmin
-      .from("training_jobs")
-      .insert({
-        status: "PENDING_REPLICATE_SUBMISSION", // Initial status
-        replicate_job_id: null, // Will be filled by background task
-        input_parameters: {
-          form_data: allInputParameters,
-          input_images_url: publicUrl, // Store the URL used for Replicate
-          supabase_storage_path: storagePath,
-          original_filename: file.name,
-        },
-        user_id: null,
-      })
-      .select("id")
-      .single()
-
-    if (dbErr) {
-      console.error("[TRAIN_ACTION] DB insert error:", dbErr)
-      throw new Error(`DB error: ${dbErr.message}`)
-    }
-    if (!dbJob || !dbJob.id) {
-      console.error("[TRAIN_ACTION] DB insert failed to return ID:", dbJob)
-      throw new Error("DB insert failed to return job ID.")
-    }
-    ourInternalJobId = dbJob.id
-    console.log(
-      `[TRAIN_ACTION] Initial DB record created. Job ID: ${ourInternalJobId}. Status: PENDING_REPLICATE_SUBMISSION`,
-    )
-
-    /* ---------- 3. Kick off Replicate submission in the background ---------- */
-    // Prepare input for Replicate API
+    /* ---------- 2. Prepare Replicate API input ---------- */
     const replicateApiInputData = {
       input_images: publicUrl,
       trigger_word: triggerWord,
       captioning: captioningValue,
     }
+    
     const parsedReplicateInput = trainingInputSchema.safeParse(replicateApiInputData)
     if (!parsedReplicateInput.success) {
-      console.error(
-        "[TRAIN_ACTION] Replicate input validation failed (pre-background task):",
-        parsedReplicateInput.error.flatten(),
-      )
-      await supabaseAdmin
-        .from("training_jobs")
-        .update({
-          status: "INVALID_INPUT_FOR_REPLICATE",
-          error_message: "Internal validation of Replicate input failed.",
-        })
-        .eq("id", ourInternalJobId)
-      return { success: false, error: "Invalid input prepared for Replicate." }
+      console.error("[TRAIN_ACTION] Replicate input validation failed:", parsedReplicateInput.error.flatten())
+      return { success: false, error: "Invalid input for Replicate API." }
     }
 
-    // --- NEW WEBHOOK LOGIC ---
+    /* ---------- 3. Determine webhook URL ---------- */
     let webhookUrl: string
     const tunnelUrl = process.env.REPLICATE_WEBHOOK_TUNNEL_URL
 
     if (process.env.NODE_ENV === "development" && tunnelUrl) {
       webhookUrl = `${tunnelUrl}/api/replicate-webhook`
-      console.log(`[TRAIN_ACTION] Using tunnel URL for local development webhook: ${webhookUrl}`)
+      console.log(`[TRAIN_ACTION] Using tunnel webhook URL: ${webhookUrl}`)
     } else {
-      const headersList = headers()
+      const headersList = await headers()
       const host = headersList.get("host")
       if (!host) {
         throw new Error("Could not determine host for webhook URL and no tunnel URL is set.")
@@ -213,20 +146,35 @@ export async function startTrainingJob(formData: FormData) {
       const protocol = host.startsWith("localhost") ? "http" : "https"
       const appUrl = `${protocol}://${host}`
       webhookUrl = `${appUrl}/api/replicate-webhook`
-      console.log(`[TRAIN_ACTION] Using dynamic host-based webhook URL: ${webhookUrl}`)
+      console.log(`[TRAIN_ACTION] Using dynamic webhook URL: ${webhookUrl}`)
     }
-    // --- END NEW WEBHOOK LOGIC ---
 
-    // Call the background function but DO NOT await it.
-    submitToReplicateAndUpdateDb(ourInternalJobId, parsedReplicateInput.data, webhookUrl)
-    console.log(
-      `[TRAIN_ACTION] Background task to submit to Replicate for DB Job ID ${ourInternalJobId} has been initiated.`,
-    )
+    /* ---------- 4. Submit to Replicate ---------- */
+    const allInputParameters = Object.fromEntries(formData.entries())
+    delete allInputParameters.file // Don't store the file object
 
-    /* ---------- 4. Return immediately to client ---------- */
-    return { success: true, jobId: ourInternalJobId }
+    const metadata = {
+      form_data: allInputParameters,
+      input_images_url: publicUrl,
+      supabase_storage_path: storagePath,
+      original_filename: file.name,
+      trigger_word: triggerWord,
+      captioning: captioningValue
+    }
+
+    const result = await submitToReplicate(parsedReplicateInput.data, webhookUrl, metadata)
+    
+    console.log(`[TRAIN_ACTION] Successfully submitted to Replicate. Job ID: ${result.replicateJobId}`)
+    
+    return { 
+      success: true, 
+      jobId: result.replicateJobId,
+      status: result.status,
+      message: "Training job submitted successfully. Database will be updated via webhook."
+    }
+
   } catch (err: any) {
-    console.error("[TRAIN_ACTION] Overall error in startTrainingJob:", err)
-    return { success: false, error: err.message || "Failed to start training job submission." }
+    console.error("[TRAIN_ACTION] Error in startTrainingJob:", err)
+    return { success: false, error: err.message || "Failed to start training job." }
   }
 }

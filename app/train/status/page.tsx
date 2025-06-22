@@ -155,7 +155,7 @@ function StatusDisplay({ job }: { job: TrainingJob }) {
 function TrainingStatusPageContent() {
   const supabase = createClient()
   const searchParams = useSearchParams()
-  const highlightedJobId = searchParams.get("jobId")
+  const highlightedJobId = searchParams.get("jobId") // This will now be the Replicate job ID
 
   const [jobs, setJobs] = useState<TrainingJob[]>([])
   const [loading, setLoading] = useState(true)
@@ -210,8 +210,9 @@ function TrainingStatusPageContent() {
     )
   }
 
-  const highlightedJob = jobs.find((job) => job.id === highlightedJobId)
-  const otherJobs = jobs.filter((job) => job.id !== highlightedJobId)
+  // Find highlighted job by either internal ID or replicate job ID
+  const highlightedJob = jobs.find((job) => job.id === highlightedJobId || job.replicate_job_id === highlightedJobId)
+  const otherJobs = jobs.filter((job) => job.id !== highlightedJobId && job.replicate_job_id !== highlightedJobId)
 
   return (
     <div className="max-w-4xl mx-auto">

@@ -78,6 +78,7 @@ export default function TrainModelPage() {
 
     if (result.success && result.jobId) {
       setIsModalOpen(false)
+      // jobId is now the Replicate job ID, not internal database ID
       router.push(`/train/status?jobId=${result.jobId}`)
     } else {
       setFormError(result.error || "Failed to start training job. Please try again.")
