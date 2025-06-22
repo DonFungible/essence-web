@@ -114,13 +114,15 @@ export default function TrainModelPage() {
         const formData = new FormData(e.currentTarget)
         const triggerWord = formData.get("trigger_word") as string
         const captioning = formData.get("captioning") as string
+				const trainingSteps = formData.get("training_steps") as string
 
         result = await startTrainingJobOptimized({
           publicUrl: uploadedFile.publicUrl,
           storagePath: uploadedFile.storagePath,
           originalFileName: fileName,
           triggerWord: triggerWord || "TOK",
-          captioning: captioning || "automatic"
+          captioning: captioning || "automatic",
+					trainingSteps: trainingSteps || "300"
         })
       } else if (file) {
         // Legacy flow: Upload via server action
@@ -154,25 +156,13 @@ export default function TrainModelPage() {
         <TopBar />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl">
           <div className="max-w-3xl mx-auto">
-            {step === "upload" && (
+            {!(file || uploadedFile) && (
               <Card className="text-center">
                 <CardHeader>
-                  <CardTitle>Train a New AI Model</CardTitle>
+                  <CardTitle>Train a New Style Model</CardTitle>
                   <CardDescription>Start by uploading your dataset as a .zip file (up to 100MB).</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {/* <div className="mb-4">
-                    <div className="flex items-center space-x-2 justify-center">
-                      <Checkbox 
-                        id="optimized-upload" 
-                        checked={useOptimizedUpload} 
-                        onCheckedChange={(checked) => setUseOptimizedUpload(Boolean(checked))}
-                      />
-                      <Label htmlFor="optimized-upload" className="text-sm">
-                        Use optimized upload (recommended for large files)
-                      </Label>
-                    </div>
-                  </div> */}
                   <Label
                     htmlFor="file-upload"
                     className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-slate-50"
@@ -222,10 +212,10 @@ export default function TrainModelPage() {
               </Card>
             )} */}
 
-            {step === "configure" && (file || uploadedFile) && (
+            {(
               <form id="trainModelForm" onSubmit={handleFormSubmit}>
                 <div className="space-y-6">
-                  <Card>
+                  {(file || uploadedFile) && <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center">
                         {uploadedFile ? (
@@ -239,7 +229,7 @@ export default function TrainModelPage() {
                         {fileName}
                       </CardDescription>
                     </CardHeader>
-                  </Card>
+                  </Card>}
 
                   <Card>
                     <CardHeader>
@@ -250,32 +240,11 @@ export default function TrainModelPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div>
-                        <Label>Mode</Label>
-                        <RadioGroup name="mode" defaultValue="general" className="flex space-x-4 mt-1">
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="general" id="general" />
-                            <Label htmlFor="general">General</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="character" id="character" />
-                            <Label htmlFor="character">Character</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="style" id="style" />
-                            <Label htmlFor="style">Style</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="product" id="product" />
-                            <Label htmlFor="product">Product</Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-                      <div>
-                        <Label htmlFor="trigger_word">Trigger Word</Label>
+                        <Label htmlFor="trigger_word">Model Name (no spaces)</Label>
                         <Input
                           id="trigger_word"
                           name="trigger_word"
-                          defaultValue="TOK"
+                          defaultValue="HRGIGER"
                           placeholder="e.g., myuniquestyle"
                         />
                         <p className="text-xs text-slate-500 mt-1">

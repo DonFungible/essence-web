@@ -108,10 +108,7 @@ function StatusDisplay({ job }: { job: TrainingJob }) {
         )}
         {job.status === "succeeded" && job.output_model_url && (
           <div className="p-4 bg-green-50 border border-green-200 rounded-md text-center">
-            <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-2" />
-            <p className="font-semibold text-green-700">Training Successful!</p>
-            <p className="text-sm text-green-600">Your model is ready.</p>
-            <p className="text-xs text-green-500 mt-1 font-mono break-all">Model ID: {job.output_model_url}</p>
+            <p className="text-base text-green-500 mt-1 font-mono break-all">Model ID: {job.output_model_url}</p>
           </div>
         )}
         {(job.status === "failed" || job.status.includes("FAILED")) && (
@@ -122,9 +119,6 @@ function StatusDisplay({ job }: { job: TrainingJob }) {
           </div>
         )}
         <div className="mt-4 text-xs text-slate-500 space-y-1">
-          <p>
-            <strong>Original File:</strong> {job.input_parameters?.original_filename || "N/A"}
-          </p>
           {job.replicate_job_id && (
             <p className="flex items-center">
               <strong>Replicate Job:</strong>

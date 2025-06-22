@@ -41,6 +41,10 @@ const trainingInputSchema = z.object({
   input_images: z.string().url(),
   trigger_word: z.string().min(1),
   captioning: z.enum(["captioning-disabled", "automatic", "captioning-enabled"]).default("automatic"),
+	training_steps: z.number().min(1).max(1000).default(300),
+	mode: z.literal("style").default("style"),
+	lora_rank: z.enum([ "16", "32" ]).default("16").transform(Number),
+	finetune_type: z.enum(["lora", "full"]).default("lora")
 })
 
 // Submit training job directly to Replicate
@@ -76,6 +80,7 @@ export async function startTrainingJobOptimized(data: {
   originalFileName: string
   triggerWord: string
   captioning?: string
+	trainingSteps?: string
 }) {
   console.log("[TRAIN_ACTION_OPTIMIZED] Starting training job submission with pre-uploaded file...")
 
@@ -92,6 +97,10 @@ export async function startTrainingJobOptimized(data: {
       input_images: publicUrl,
       trigger_word: triggerWord,
       captioning: captioning,
+			training_steps: 149,
+			mode: "style",
+			lora_rank: 16,
+			finetune_type: "lora"
     }
     
     const parsedReplicateInput = trainingInputSchema.safeParse(replicateApiInputData)
