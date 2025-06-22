@@ -21,13 +21,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
-import { AlertCircle, ArrowLeft, FileArchiveIcon as FileZip, Loader2, Settings, UploadCloud, Wand2 } from "lucide-react"
+import { AlertCircle, ArrowLeft, FileArchiveIcon as FileZip, Loader2, Settings, UploadCloud, Wand2, CheckCircle } from "lucide-react"
+import { useFileUpload } from "@/hooks/use-upload"
 
-import { startTrainingJob } from "./actions"
+import { startTrainingJobOptimized, startTrainingJob } from "./actions"
 
-type Step = "upload" | "configure"
+type Step = "upload" | "uploading" | "configure"
 
 // --- React Client Component ---
 
@@ -40,48 +42,107 @@ export default function TrainModelPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [useOptimizedUpload, setUseOptimizedUpload] = useState(true)
+  
+  // Upload state for optimized flow
+  const { uploading, progress, error: uploadError, uploadedFile, uploadFile, reset } = useFileUpload()
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const uploadedFile = e.target.files[0]
-      if (uploadedFile.type === "application/zip" || uploadedFile.type === "application/x-zip-compressed") {
-        setFile(uploadedFile)
-        setFileName(uploadedFile.name)
-        setFormError(null)
-        setStep("configure")
-      } else {
+      const selectedFile = e.target.files[0]
+      
+      // Validate file type
+      if (!selectedFile.type.includes('zip') && !selectedFile.type.includes('application/zip')) {
         setFormError("Please upload a valid .zip file.")
-        setFile(null)
-        setFileName("")
+        return
+      }
+
+      // Validate file size (100MB limit)
+      if (selectedFile.size > 100 * 1024 * 1024) {
+        setFormError("File size must be less than 100MB.")
+        return
+      }
+
+      setFile(selectedFile)
+      setFileName(selectedFile.name)
+      setFormError(null)
+      
+      if (useOptimizedUpload) {
+        // Optimized flow: Upload immediately
+        setStep("configure")
+        try {
+          await uploadFile(selectedFile, {
+            onProgress: (progress) => {
+              console.log(`Upload progress: ${progress}%`)
+            },
+            onComplete: (result) => {
+              console.log('Upload completed:', result)
+              setStep("configure")
+            },
+            onError: (error) => {
+              console.error('Upload error:', error)
+              setFormError(error)
+              setStep("upload")
+            }
+          })
+        } catch (error) {
+          console.error('Upload failed:', error)
+          setStep("upload")
+        }
+      } else {
+        // Legacy flow: Just proceed to configuration
+        setStep("configure")
       }
     }
   }
 
   const handleFormSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!file || !isConsentGiven) {
-      if (!isConsentGiven) setFormError("You must agree to the terms to start training.")
+    if (!isConsentGiven) {
+      setFormError("You must agree to the terms to start training.")
       return
     }
 
     setIsLoading(true)
     setFormError(null)
 
-    const formData = new FormData(e.currentTarget)
-    if (file) {
-      formData.append("file", file)
-    }
+    try {
+      let result
 
-    // The form action is now calling the function defined in this same file
-    const result = await startTrainingJob(formData)
-    setIsLoading(false)
+      if (useOptimizedUpload && uploadedFile) {
+        // Optimized flow: Use pre-uploaded file
+        const formData = new FormData(e.currentTarget)
+        const triggerWord = formData.get("trigger_word") as string
+        const captioning = formData.get("captioning") as string
 
-    if (result.success && result.jobId) {
-      setIsModalOpen(false)
-      // jobId is now the Replicate job ID, not internal database ID
-      router.push(`/train/status?jobId=${result.jobId}`)
-    } else {
-      setFormError(result.error || "Failed to start training job. Please try again.")
+        result = await startTrainingJobOptimized({
+          publicUrl: uploadedFile.publicUrl,
+          storagePath: uploadedFile.storagePath,
+          originalFileName: fileName,
+          triggerWord: triggerWord || "TOK",
+          captioning: captioning || "automatic"
+        })
+      } else if (file) {
+        // Legacy flow: Upload via server action
+        const formData = new FormData(e.currentTarget)
+        formData.append("file", file)
+        result = await startTrainingJob(formData)
+      } else {
+        throw new Error("No file selected")
+      }
+
+      setIsLoading(false)
+
+      if (result.success && result.jobId) {
+        setIsModalOpen(false)
+        router.push(`/train/status?jobId=${result.jobId}`)
+      } else {
+        setFormError(result.error || "Failed to start training job. Please try again.")
+        setIsModalOpen(false)
+      }
+    } catch (error) {
+      setIsLoading(false)
+      setFormError(error instanceof Error ? error.message : "An unexpected error occurred")
       setIsModalOpen(false)
     }
   }
@@ -97,9 +158,21 @@ export default function TrainModelPage() {
               <Card className="text-center">
                 <CardHeader>
                   <CardTitle>Train a New AI Model</CardTitle>
-                  <CardDescription>Start by uploading your dataset as a .zip file.</CardDescription>
+                  <CardDescription>Start by uploading your dataset as a .zip file (up to 100MB).</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {/* <div className="mb-4">
+                    <div className="flex items-center space-x-2 justify-center">
+                      <Checkbox 
+                        id="optimized-upload" 
+                        checked={useOptimizedUpload} 
+                        onCheckedChange={(checked) => setUseOptimizedUpload(Boolean(checked))}
+                      />
+                      <Label htmlFor="optimized-upload" className="text-sm">
+                        Use optimized upload (recommended for large files)
+                      </Label>
+                    </div>
+                  </div> */}
                   <Label
                     htmlFor="file-upload"
                     className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-slate-50"
@@ -109,7 +182,7 @@ export default function TrainModelPage() {
                       <p className="mb-2 text-sm text-slate-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-slate-500">ZIP file (MIN 10 images recommended)</p>
+                      <p className="text-xs text-slate-500">ZIP file (up to 100MB, MIN 10 images recommended)</p>
                     </div>
                     <Input id="file-upload" type="file" className="hidden" accept=".zip" onChange={handleFileChange} />
                   </Label>
@@ -123,15 +196,48 @@ export default function TrainModelPage() {
               </Card>
             )}
 
-            {step === "configure" && file && (
+            {/* {step === "uploading" && (
+              <Card className="text-center">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-center">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Uploading Dataset
+                  </CardTitle>
+                  <CardDescription>
+                    {fileName} • {uploading ? 'Uploading...' : 'Processing...'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Progress value={progress} className="w-full" />
+                    <p className="text-sm text-slate-600">{progress}% complete</p>
+                    {uploadError && (
+                      <p className="text-sm text-red-600">
+                        <AlertCircle className="inline w-4 h-4 mr-1" />
+                        {uploadError}
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )} */}
+
+            {step === "configure" && (file || uploadedFile) && (
               <form id="trainModelForm" onSubmit={handleFormSubmit}>
                 <div className="space-y-6">
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center">
-                        <FileZip className="mr-2" /> Uploaded Dataset
+                        {uploadedFile ? (
+                          <CheckCircle className="mr-2 text-green-600" />
+                        ) : (
+                          <FileZip className="mr-2" />
+                        )}
+                        Attached Files
                       </CardTitle>
-                      <CardDescription>{fileName}</CardDescription>
+                      <CardDescription>
+                        {fileName}
+                      </CardDescription>
                     </CardHeader>
                   </Card>
 

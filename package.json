@@ -12,8 +12,12 @@
     "tunnel:simple": "ngrok http 3000",
     "tunnel:custom": "ngrok http 3000 --domain=lark-humorous-globally.ngrok-free.app",
     "test:webhook": "node scripts/test-webhook.js",
+    "test:webhook:starting": "node scripts/test-webhook.js starting",
     "test:webhook:success": "node scripts/test-webhook.js succeeded",
-    "test:webhook:failed": "node scripts/test-webhook.js failed"
+    "test:webhook:failed": "node scripts/test-webhook.js failed",
+    "test:webhook:lifecycle": "node scripts/test-webhook.js lifecycle",
+    "test:upload": "node scripts/test-upload.js",
+    "migrate:unique-job-id": "node scripts/apply-migration.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

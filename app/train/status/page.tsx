@@ -36,25 +36,25 @@ function StatusDisplay({ job }: { job: TrainingJob }) {
       progressValue = 5
       statusText = "Pending Submission"
       StatusIcon = Loader2
-      statusColor = "bg-slate-100 text-slate-800 animate-spin"
+      statusColor = "bg-slate-100 text-slate-800 "
       break
     case "SUBMITTED_TO_REPLICATE":
       progressValue = 15
       statusText = "Submitted to Replicate"
       StatusIcon = Loader2
-      statusColor = "bg-blue-100 text-blue-800 animate-spin"
+      statusColor = "bg-blue-100 text-blue-800 "
       break
     case "starting":
       progressValue = 25
       statusText = "Starting"
       StatusIcon = Loader2
-      statusColor = "bg-blue-100 text-blue-800 animate-spin"
+      statusColor = "bg-blue-100 text-blue-800 "
       break
     case "processing":
       progressValue = 60
       statusText = "Processing"
       StatusIcon = Loader2
-      statusColor = "bg-blue-100 text-blue-800 animate-spin"
+      statusColor = "bg-blue-100 text-blue-800 "
       break
     case "succeeded":
       progressValue = 100

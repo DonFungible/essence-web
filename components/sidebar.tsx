@@ -4,43 +4,39 @@ import Link from "next/link"
 import { useState } from "react"
 import {
   LayoutGrid,
-  ChevronUp,
-  ChevronDown,
   Heart,
-  Folder,
   FolderPlus,
   CuboidIcon as Cube,
   Sparkles,
-  Feather,
   Cpu,
   Palette,
+	Paintbrush,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const Sidebar = () => {
-  const [exploreOpen, setExploreOpen] = useState(true)
   const [assetsOpen, setAssetsOpen] = useState(true)
 
   return (
     <div className="w-64 bg-white p-4 space-y-6 border-r border-slate-200 flex flex-col">
       <div className="flex items-center space-x-2">
-        <Feather className="w-8 h-8 text-slate-800" />
-        <h1 className="text-xl font-bold text-slate-800">Essence</h1>
+        <Paintbrush className="w-8 h-8 text-slate-800" />
+        <h1 className="text-xl font-bold text-slate-800">essence</h1>
       </div>
 
-      <nav className="flex-grow space-y-2">
+      <nav className="flex-grow space-y-2 text-[16px]">
         <div>
+					<Link href="/">
           <Button
             variant="ghost"
             className="w-full justify-between items-center text-slate-700 hover:bg-slate-100"
-            onClick={() => setExploreOpen(!exploreOpen)}
-          >
+						>
             <div className="flex items-center space-x-2">
               <LayoutGrid className="w-5 h-5" />
-              <span>Explore</span>
+              <span className="text-[16px]">Explore</span>
             </div>
-            {exploreOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </Button>
+						</Link>
         </div>
 
         <Link
@@ -59,16 +55,15 @@ const Sidebar = () => {
           >
             <div className="flex items-center space-x-2">
               <Sparkles className="w-5 h-5" />
-              <span>Assets</span>
+              <span className="text-[16px] text-slate-700 font-normal">IP Assets</span>
             </div>
-            {assetsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </Button>
           {/* Add asset sub-items if any, similar to explore */}
         </div>
 
         <Link href="#" className="flex items-center space-x-2 px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md">
           <Heart className="w-5 h-5" />
-          <span>Likes</span>
+          <span className="text-[16px]">Likes</span>
         </Link>
 
         <div className="pt-4">

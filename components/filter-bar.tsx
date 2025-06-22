@@ -3,15 +3,13 @@ import { Button } from "@/components/ui/button"
 
 const filterItems = [
   {
-    name: "Product Design",
-    description: "Sleek, abstract objects",
-    imgSrc: "/abstract-product.png",
+    name: "Artists",
+    description: "Individual artist styles",
+    imgSrc: "/diverse-user-avatars.png",
     active: true,
   },
-  { name: "Backgrounds", description: "Dreamy, scenic vibes", imgSrc: "/dreamy-background.png" },
-  { name: "Animated", description: "Minimalist, soft", imgSrc: "/minimalist-animation.png" },
-  { name: "3D Icons", description: "Clean, rounded icons", imgSrc: "/generic-3d-icon.png" },
-  { name: "Presentations", description: "Modern, sleek slides", imgSrc: "/presentation-slide.png" },
+  { name: "Art Styles", description: "Specific art movements", imgSrc: "/anime-fantasy-landscape.png" },
+  { name: "Style Collaborations", description: "Blended artistic styles", imgSrc: "/pastel-architecture-horse.png" },
 ]
 
 const FilterBar = () => {

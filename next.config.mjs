@@ -9,6 +9,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Temporary fix: Increase Server Actions body limit for file uploads
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '100mb',
+    },
+  },
 }
 
 export default nextConfig

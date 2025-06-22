@@ -42,32 +42,47 @@ export async function POST(req: NextRequest) {
   console.log(`🔄 Processing webhook for job ${replicateJobId} with status: ${status}`)
 
   try {
-    // Check if record exists
-    const { data: existingJob } = await supabase
-      .from("training_jobs")
-      .select("*")
-      .eq("replicate_job_id", replicateJobId)
-      .single()
+    // Prepare the base data for insert/update
+    const jobData: any = {
+      replicate_job_id: replicateJobId,
+      status: status,
+      logs: logs ? (typeof logs === "string" ? logs : JSON.stringify(logs)) : null,
+    }
+
+    // Handle different status types and add relevant data
+    if (status === "succeeded" && output) {
+      jobData.output_model_url = Array.isArray(output) ? output.join("\n") : String(output)
+      console.log(`✅ Job ${replicateJobId} succeeded with output`)
+    } else if (status === "failed" && replicateError) {
+      jobData.error_message = typeof replicateError === "string" ? replicateError : JSON.stringify(replicateError)
+      console.log(`❌ Job ${replicateJobId} failed:`, replicateError)
+    } else if (status === "processing") {
+      console.log(`⏳ Job ${replicateJobId} is processing...`)
+    } else if (status === "starting") {
+      console.log(`🚀 Job ${replicateJobId} is starting...`)
+    }
 
     let jobRecord: any
+    let action: string
 
-    if (!existingJob) {
-      // Create new record if this is the first webhook for this job
-      console.log(`📝 Creating new database record for job ${replicateJobId}`)
+    if (status === "starting") {
+      // First webhook: CREATE new record
+      console.log(`📝 Creating new database record for job ${replicateJobId} (starting)`)
       
+      // Add additional fields for new records
+      jobData.input_parameters = {
+        created_via_webhook: true,
+        initial_status: status,
+        created_at: new Date().toISOString()
+      }
+      jobData.user_id = null
+
+      // Use upsert to handle potential race conditions
       const { data: newJob, error: createError } = await supabase
         .from("training_jobs")
-        .insert({
-          replicate_job_id: replicateJobId,
-          status: status,
-          input_parameters: {
-            // We'll store basic info, full metadata can be added later if needed
-            created_via_webhook: true,
-            initial_status: status,
-            created_at: new Date().toISOString()
-          },
-          logs: logs ? (typeof logs === "string" ? logs : JSON.stringify(logs)) : null,
-          user_id: null,
+        .upsert(jobData, { 
+          onConflict: 'replicate_job_id',
+          ignoreDuplicates: false 
         })
         .select()
         .single()
@@ -78,52 +93,57 @@ export async function POST(req: NextRequest) {
       }
 
       jobRecord = newJob
-      console.log(`✅ Created new database record for job ${replicateJobId}`)
-    } else {
-      // Update existing record
-      console.log(`📝 Updating existing database record for job ${replicateJobId}`)
+      action = "created"
+      console.log(`✅ Created database record for job ${replicateJobId}`)
       
-      const updateData: {
-        status: string
-        output_model_url?: string | null
-        error_message?: string | null
-        logs?: string | null
-      } = {
-        status: status,
-      }
-
-      // Handle different status types
-      if (status === "succeeded" && output) {
-        updateData.output_model_url = Array.isArray(output) ? output.join("\n") : String(output)
-        console.log(`✅ Job ${replicateJobId} succeeded with output`)
-      } else if (status === "failed" && replicateError) {
-        updateData.error_message = typeof replicateError === "string" ? replicateError : JSON.stringify(replicateError)
-        console.log(`❌ Job ${replicateJobId} failed:`, replicateError)
-      } else if (status === "processing") {
-        console.log(`⏳ Job ${replicateJobId} is processing...`)
-      } else if (status === "starting") {
-        console.log(`🚀 Job ${replicateJobId} is starting...`)
-      }
-
-      // Always update logs if present
-      if (logs) {
-        updateData.logs = typeof logs === "string" ? logs : JSON.stringify(logs)
-      }
-
+    } else {
+      // Subsequent webhooks: UPDATE existing record
+      console.log(`📝 Updating existing database record for job ${replicateJobId} (${status})`)
+      
       const { data: updatedJob, error: updateError } = await supabase
         .from("training_jobs")
-        .update(updateData)
+        .update(jobData)
         .eq("replicate_job_id", replicateJobId)
         .select()
         .single()
 
       if (updateError) {
         console.error(`❌ Database error updating job ${replicateJobId}:`, updateError)
-        return NextResponse.json({ error: "Database update failed" }, { status: 500 })
-      }
+        
+        // If update fails because record doesn't exist, create it
+        if (updateError.code === 'PGRST116') {
+          console.log(`🔄 Record not found, creating new record for job ${replicateJobId}`)
+          
+          jobData.input_parameters = {
+            created_via_webhook: true,
+            initial_status: status,
+            created_at: new Date().toISOString(),
+            created_on_missing_record: true
+          }
+          jobData.user_id = null
 
-      jobRecord = updatedJob
-      console.log(`✅ Updated database record for job ${replicateJobId}`)
+          const { data: newJob, error: createError } = await supabase
+            .from("training_jobs")
+            .insert(jobData)
+            .select()
+            .single()
+
+          if (createError) {
+            console.error(`❌ Database error creating missing job ${replicateJobId}:`, createError)
+            return NextResponse.json({ error: "Database creation failed" }, { status: 500 })
+          }
+
+          jobRecord = newJob
+          action = "created (missing record)"
+          console.log(`✅ Created missing database record for job ${replicateJobId}`)
+        } else {
+          return NextResponse.json({ error: "Database update failed" }, { status: 500 })
+        }
+      } else {
+        jobRecord = updatedJob
+        action = "updated"
+        console.log(`✅ Updated database record for job ${replicateJobId}`)
+      }
     }
 
     console.log(`✅ Successfully processed webhook for job ${replicateJobId} with status: ${status}`)
@@ -131,7 +151,7 @@ export async function POST(req: NextRequest) {
       message: "Webhook received and processed successfully",
       jobId: replicateJobId,
       status: status,
-      action: existingJob ? "updated" : "created"
+      action: action
     }, { status: 200 })
 
   } catch (err: any) {
