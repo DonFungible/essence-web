@@ -17,7 +17,8 @@
     "test:webhook:failed": "node scripts/test-webhook.js failed",
     "test:webhook:lifecycle": "node scripts/test-webhook.js lifecycle",
     "test:upload": "node scripts/test-upload.js",
-    "migrate:unique-job-id": "node scripts/apply-migration.js"
+    "migrate:unique-job-id": "node scripts/apply-migration.js",
+    "migrate:training-inputs": "node scripts/apply-training-inputs-migration.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

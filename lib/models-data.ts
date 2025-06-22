@@ -63,3 +63,46 @@ export type ModelType = (typeof models)[0]
 export const getModelById = (id: string): ModelType | undefined => {
   return models.find((m) => m.id === id)
 }
+
+// Transform database training job to UI model format  
+export function transformDbModelToUIModel(dbModel: {
+  id: string
+  replicate_job_id?: string | null
+  trigger_word?: string | null
+  status?: string
+  training_steps?: number | null
+  captioning?: string | null
+  predict_time?: number | null
+  completed_at?: string | null
+}): ModelType {
+  return {
+    id: dbModel.replicate_job_id || dbModel.id,
+    name: dbModel.trigger_word || `Model ${dbModel.id.substring(0, 8)}`,
+    version: `v1.0 (${dbModel.status})`,
+    description: `Custom trained model using ${dbModel.training_steps || 'default'} training steps. ${
+      dbModel.captioning ? `Uses ${dbModel.captioning} captioning.` : ''
+    } ${dbModel.predict_time ? `Training completed in ${Math.round(dbModel.predict_time / 60)} minutes.` : ''}`.trim(),
+    trainingData: {
+      size: "Custom dataset",
+      sources: ["User uploaded dataset"],
+    },
+    styles: [
+      dbModel.trigger_word || "Custom Style",
+      dbModel.captioning || "Auto-captioned",
+      "Fine-tuned",
+      "LoRA"
+    ],
+    metrics: [
+      { name: "Status", value: dbModel.status === 'succeeded' ? 100 : 0 },
+      { name: "Training Steps", value: dbModel.training_steps ? Math.min(100, (dbModel.training_steps / 1000) * 100) : 50 },
+      { name: "Completion", value: dbModel.completed_at ? 100 : 0 },
+      { name: "Custom Model", value: 100 },
+    ],
+    exampleImages: [
+      // Use placeholder images for now - in future could extract from input_images_url
+      "/placeholder.svg",
+      "/placeholder-user.jpg", 
+      "/placeholder.jpg"
+    ],
+  }
+}

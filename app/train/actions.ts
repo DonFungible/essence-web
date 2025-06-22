@@ -84,7 +84,7 @@ export async function startTrainingJobOptimized(data: {
 }) {
   console.log("[TRAIN_ACTION_OPTIMIZED] Starting training job submission with pre-uploaded file...")
 
-  const { publicUrl, storagePath, originalFileName, triggerWord, captioning = "automatic" } = data
+  const { publicUrl, storagePath, originalFileName, triggerWord, captioning = "automatic", trainingSteps = "300" } = data
 
   if (!publicUrl || !triggerWord) {
     return { success: false, error: "Missing required parameters." }
@@ -97,10 +97,10 @@ export async function startTrainingJobOptimized(data: {
       input_images: publicUrl,
       trigger_word: triggerWord,
       captioning: captioning,
-			training_steps: 149,
-			mode: "style",
-			lora_rank: 16,
-			finetune_type: "lora"
+      training_steps: parseInt(trainingSteps),
+      mode: "style" as const,
+      lora_rank: "16",
+      finetune_type: "lora" as const
     }
     
     const parsedReplicateInput = trainingInputSchema.safeParse(replicateApiInputData)
@@ -135,6 +135,7 @@ export async function startTrainingJobOptimized(data: {
       original_filename: originalFileName,
       trigger_word: triggerWord,
       captioning: captioning,
+      training_steps: trainingSteps,
       upload_method: "optimized_direct"
     }
 

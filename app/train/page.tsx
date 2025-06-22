@@ -21,15 +21,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
+
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
-import { AlertCircle, ArrowLeft, FileArchiveIcon as FileZip, Loader2, Settings, UploadCloud, Wand2, CheckCircle } from "lucide-react"
+import { AlertCircle, ArrowLeft, FileArchiveIcon as FileZip, Loader2, Settings, UploadCloud, Wand2 } from "lucide-react"
 import { useFileUpload } from "@/hooks/use-upload"
 
 import { startTrainingJobOptimized, startTrainingJob } from "./actions"
 
-type Step = "upload" | "uploading" | "configure"
+type Step = "upload" | "configure"
 
 // --- React Client Component ---
 
@@ -45,9 +45,9 @@ export default function TrainModelPage() {
   const [useOptimizedUpload, setUseOptimizedUpload] = useState(true)
   
   // Upload state for optimized flow
-  const { uploading, progress, error: uploadError, uploadedFile, uploadFile, reset } = useFileUpload()
+  const { uploading, progress, uploadFile } = useFileUpload()
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0]
       
@@ -67,32 +67,8 @@ export default function TrainModelPage() {
       setFileName(selectedFile.name)
       setFormError(null)
       
-      if (useOptimizedUpload) {
-        // Optimized flow: Upload immediately
-        setStep("configure")
-        try {
-          await uploadFile(selectedFile, {
-            onProgress: (progress) => {
-              console.log(`Upload progress: ${progress}%`)
-            },
-            onComplete: (result) => {
-              console.log('Upload completed:', result)
-              setStep("configure")
-            },
-            onError: (error) => {
-              console.error('Upload error:', error)
-              setFormError(error)
-              setStep("upload")
-            }
-          })
-        } catch (error) {
-          console.error('Upload failed:', error)
-          setStep("upload")
-        }
-      } else {
-        // Legacy flow: Just proceed to configuration
-        setStep("configure")
-      }
+      // Just store the file, don't upload yet
+      console.log(`File selected: ${selectedFile.name} (${Math.round(selectedFile.size / 1024 / 1024)}MB)`)
     }
   }
 
@@ -103,30 +79,59 @@ export default function TrainModelPage() {
       return
     }
 
+    if (!file) {
+      setFormError("Please select a file to upload.")
+      return
+    }
+
     setIsLoading(true)
     setFormError(null)
 
     try {
       let result
 
-      if (useOptimizedUpload && uploadedFile) {
-        // Optimized flow: Use pre-uploaded file
-        const formData = new FormData(e.currentTarget)
+      if (useOptimizedUpload && file) {
+        // Optimized flow: Upload file now, then submit to Replicate
+        console.log("🚀 Starting optimized upload and training flow...")
+        
+        // Step 1: Upload file to Supabase
+        const uploadResult = await uploadFile(file, {
+          onProgress: (progress) => {
+            console.log(`Upload progress: ${progress}%`)
+          },
+          onError: (error) => {
+            console.error('Upload error:', error)
+            throw new Error(`Upload failed: ${error}`)
+          }
+        })
+
+        console.log("✅ File uploaded successfully:", uploadResult.publicUrl)
+
+        // Step 2: Get form data and submit to Replicate
+        const formElement = document.getElementById("trainModelForm") as HTMLFormElement
+        if (!formElement) {
+          throw new Error("Form element not found")
+        }
+        const formData = new FormData(formElement)
         const triggerWord = formData.get("trigger_word") as string
         const captioning = formData.get("captioning") as string
-				const trainingSteps = formData.get("training_steps") as string
+        const trainingSteps = formData.get("training_steps") as string
 
         result = await startTrainingJobOptimized({
-          publicUrl: uploadedFile.publicUrl,
-          storagePath: uploadedFile.storagePath,
+          publicUrl: uploadResult.publicUrl,
+          storagePath: uploadResult.storagePath,
           originalFileName: fileName,
           triggerWord: triggerWord || "TOK",
           captioning: captioning || "automatic",
-					trainingSteps: trainingSteps || "300"
+          trainingSteps: trainingSteps || "300"
         })
       } else if (file) {
         // Legacy flow: Upload via server action
-        const formData = new FormData(e.currentTarget)
+        const formElement = document.getElementById("trainModelForm") as HTMLFormElement
+        if (!formElement) {
+          throw new Error("Form element not found")
+        }
+        const formData = new FormData(formElement)
         formData.append("file", file)
         result = await startTrainingJob(formData)
       } else {
@@ -156,7 +161,7 @@ export default function TrainModelPage() {
         <TopBar />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl">
           <div className="max-w-3xl mx-auto">
-            {!(file || uploadedFile) && (
+            {!file && (
               <Card className="text-center">
                 <CardHeader>
                   <CardTitle>Train a New Style Model</CardTitle>
@@ -186,47 +191,16 @@ export default function TrainModelPage() {
               </Card>
             )}
 
-            {/* {step === "uploading" && (
-              <Card className="text-center">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-center">
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Uploading Dataset
-                  </CardTitle>
-                  <CardDescription>
-                    {fileName} • {uploading ? 'Uploading...' : 'Processing...'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Progress value={progress} className="w-full" />
-                    <p className="text-sm text-slate-600">{progress}% complete</p>
-                    {uploadError && (
-                      <p className="text-sm text-red-600">
-                        <AlertCircle className="inline w-4 h-4 mr-1" />
-                        {uploadError}
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )} */}
-
-            {(
-              <form id="trainModelForm" onSubmit={handleFormSubmit}>
+            <form id="trainModelForm" onSubmit={handleFormSubmit}>
                 <div className="space-y-6">
-                  {(file || uploadedFile) && <Card>
+                  {file && <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center">
-                        {uploadedFile ? (
-                          <CheckCircle className="mr-2 text-green-600" />
-                        ) : (
-                          <FileZip className="mr-2" />
-                        )}
-                        Attached Files
+                        <FileZip className="mr-2" />
+                        Selected File
                       </CardTitle>
                       <CardDescription>
-                        {fileName}
+                        {fileName} • {Math.round(file.size / 1024 / 1024)}MB
                       </CardDescription>
                     </CardHeader>
                   </Card>}
@@ -269,13 +243,13 @@ export default function TrainModelPage() {
                     </CardContent>
                   </Card>
 
-                  <Button type="button" className="w-full" onClick={() => setIsModalOpen(true)} disabled={isLoading}>
-                    {isLoading && step === "configure" ? (
+                  <Button type="button" className="w-full" onClick={() => setIsModalOpen(true)} disabled={isLoading || !file}>
+                    {isLoading ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                       <Wand2 className="mr-2 h-4 w-4" />
                     )}
-                    Review & Start Training
+                    {isLoading ? "Uploading & Starting Training..." : "Review & Start Training"}
                   </Button>
                   {formError && (
                     <p className="mt-2 text-sm text-red-600 text-center">
@@ -301,7 +275,7 @@ export default function TrainModelPage() {
                           </li>
                           <li>
                             As part of our commitment to creator rights, a hash of your images will be registered as
-                            Intellectual Property on the <strong>Story Protocol blockchain</strong>. This creates a
+                            Intellectual Property on the <strong>Story blockchain</strong>. This creates a
                             verifiable, on-chain link between you and your dataset.
                           </li>
                         </ul>
@@ -325,8 +299,15 @@ export default function TrainModelPage() {
                           Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction asChild>
-                          <Button type="submit" form="trainModelForm" disabled={!isConsentGiven || isLoading}>
-                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Agree & Start Training"}
+                          <Button type="submit" form="trainModelForm" disabled={!isConsentGiven || isLoading || !file}>
+                            {isLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {uploading ? `Uploading... ${progress}%` : "Starting Training..."}
+                              </>
+                            ) : (
+                              "Agree & Start Training"
+                            )}
                           </Button>
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -334,7 +315,6 @@ export default function TrainModelPage() {
                   </AlertDialog>
                 </div>
               </form>
-            )}
             <div className="mt-8 text-center">
               <Link href="/models" className="text-sm text-slate-600 hover:text-slate-800">
                 <ArrowLeft className="inline w-4 h-4 mr-1" /> Back to All Models

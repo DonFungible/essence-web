@@ -31,7 +31,17 @@ export async function POST(req: NextRequest) {
     hasLogs: !!body.logs
   })
 
-  const { id: replicateJobId, status, output, error: replicateError, logs, metrics } = body
+  const { 
+    id: replicateJobId, 
+    status, 
+    output, 
+    error: replicateError, 
+    logs, 
+    metrics,
+    input,
+    completed_at,
+    started_at
+  } = body
 
   if (!replicateJobId) {
     console.error("❌ Webhook missing Replicate Job ID")
@@ -49,10 +59,42 @@ export async function POST(req: NextRequest) {
       logs: logs ? (typeof logs === "string" ? logs : JSON.stringify(logs)) : null,
     }
 
+    // Add timing data if available
+    if (completed_at) {
+      jobData.completed_at = completed_at
+    }
+    if (started_at) {
+      jobData.started_at = started_at
+    }
+    if (metrics) {
+      if (metrics.predict_time) {
+        jobData.predict_time = metrics.predict_time
+      }
+      if (metrics.total_time) {
+        jobData.total_time = metrics.total_time
+      }
+    }
+
     // Handle different status types and add relevant data
     if (status === "succeeded" && output) {
       jobData.output_model_url = Array.isArray(output) ? output.join("\n") : String(output)
-      console.log(`✅ Job ${replicateJobId} succeeded with output`)
+      
+      // Store training input parameters for successful jobs
+      if (input) {
+        jobData.input_images_url = input.input_images || null
+        jobData.trigger_word = input.trigger_word || null
+        jobData.captioning = input.captioning || null
+        jobData.training_steps = input.steps || input.training_steps || null
+        
+        console.log(`✅ Job ${replicateJobId} succeeded with output and training inputs:`, {
+          trigger_word: input.trigger_word,
+          input_images: input.input_images,
+          captioning: input.captioning,
+          steps: input.steps || input.training_steps
+        })
+      } else {
+        console.log(`✅ Job ${replicateJobId} succeeded with output (no input data in webhook)`)
+      }
     } else if (status === "failed" && replicateError) {
       jobData.error_message = typeof replicateError === "string" ? replicateError : JSON.stringify(replicateError)
       console.log(`❌ Job ${replicateJobId} failed:`, replicateError)
@@ -99,6 +141,47 @@ export async function POST(req: NextRequest) {
     } else {
       // Subsequent webhooks: UPDATE existing record
       console.log(`📝 Updating existing database record for job ${replicateJobId} (${status})`)
+      
+      // Check current status to prevent duplicate processing webhooks
+      const { data: currentJob, error: fetchError } = await supabase
+        .from("training_jobs")
+        .select("status")
+        .eq("replicate_job_id", replicateJobId)
+        .single()
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error(`❌ Error fetching current status for job ${replicateJobId}:`, fetchError)
+        return NextResponse.json({ error: "Database fetch failed" }, { status: 500 })
+      }
+
+      // Ignore duplicate "processing" webhooks - only process the first one
+      if (currentJob && 
+          currentJob.status === 'processing' && 
+          status === 'processing') {
+        console.log(`⚠️ Ignoring duplicate processing webhook for job ${replicateJobId}`)
+        return NextResponse.json({ 
+          message: "Ignored duplicate processing webhook",
+          jobId: replicateJobId,
+          currentStatus: currentJob.status,
+          attemptedStatus: status,
+          action: "ignored"
+        }, { status: 200 })
+      }
+
+      // Also ignore any webhooks that try to go back to processing from final states
+      const finalStates = ['succeeded', 'failed', 'canceled']
+      if (currentJob && 
+          finalStates.includes(currentJob.status) && 
+          status === 'processing') {
+        console.log(`⚠️ Ignoring processing webhook after final state for job ${replicateJobId}: ${currentJob.status} -> ${status}`)
+        return NextResponse.json({ 
+          message: "Ignored processing webhook after final state",
+          jobId: replicateJobId,
+          currentStatus: currentJob.status,
+          attemptedStatus: status,
+          action: "ignored"
+        }, { status: 200 })
+      }
       
       const { data: updatedJob, error: updateError } = await supabase
         .from("training_jobs")

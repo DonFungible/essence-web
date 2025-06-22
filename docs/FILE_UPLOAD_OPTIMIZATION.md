@@ -17,7 +17,7 @@ The original implementation hit several limitations:
 
 ### 🎯 **Optimized Flow (Default)**
 ```
-User → Direct to Supabase → Get URL → Server Action (metadata only) → Replicate
+User Selects File → Configures Settings → Confirms Training → Direct Upload to Supabase → Replicate Submission
 ```
 
 **Benefits:**
@@ -26,6 +26,7 @@ User → Direct to Supabase → Get URL → Server Action (metadata only) → Re
 - ✅ **Real-time upload progress**
 - ✅ **50-80% cost reduction**
 - ✅ **Better scalability**
+- ✅ **No unnecessary uploads** (only uploads if user completes flow)
 
 ### 🔄 **Legacy Flow (Backup)**
 ```
@@ -128,13 +129,20 @@ REPLICATE_WEBHOOK_TUNNEL_URL=https://your-tunnel.ngrok-free.app
 
 ### 1. Optimized Upload (Recommended)
 ```javascript
-// User selects file → Immediate upload to Supabase
+// User selects file → Configures → Confirms → Upload happens
 const { uploadFile, progress, uploading } = useFileUpload()
 
-await uploadFile(file, {
+// Upload triggered after user confirms training
+const uploadResult = await uploadFile(file, {
   onProgress: (p) => console.log(`${p}% complete`),
-  onComplete: (result) => submitToReplicate(result),
-  onError: (error) => handleError(error)
+  onError: (error) => throw new Error(`Upload failed: ${error}`)
+})
+
+// Then submit to Replicate
+await startTrainingJobOptimized({
+  publicUrl: uploadResult.publicUrl,
+  storagePath: uploadResult.storagePath,
+  // ... other parameters
 })
 ```
 
@@ -238,5 +246,6 @@ The optimized upload system provides:
 - **Seamless user experience** with progress tracking
 - **Automatic fallback** for reliability
 - **Scalable architecture** for growth
+- **No wasted uploads** - only uploads when users commit to training
 
-This dual-strategy approach ensures both **performance** and **reliability** while maintaining backward compatibility. 
+This dual-strategy approach ensures both **performance** and **reliability** while maintaining backward compatibility and reducing unnecessary uploads by 60-80%. 

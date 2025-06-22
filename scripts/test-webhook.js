@@ -23,9 +23,20 @@ async function testWebhook(testCase = 'processing') {
     succeeded: {
       id: duplicateTestJobId,
       status: 'succeeded',
-      output: 'replicate-model-id-abc123',
-      logs: 'Training completed successfully!',
-      completed_at: new Date().toISOString()
+      output: 'ffaf718d-a58d-4426-b128-39dc939af6fe',
+      logs: 'Fine-tuning completed in 787.2sec\nFine tuning completed. Use your finetune ID ffaf718d-a58d-4426-b128-39dc939af6fe to create images with your training.',
+      completed_at: new Date().toISOString(),
+      started_at: new Date(Date.now() - 800000).toISOString(),
+      input: {
+        captioning: 'automatic',
+        input_images: 'https://scnlhgunuavsfiqiomjw.supabase.co/storage/v1/object/public/models/public/TESTMODEL-f47947bd-4210-48cd-a3f8-cad8ab6161eb.zip',
+        trigger_word: 'TESTMODEL',
+        steps: 300
+      },
+      metrics: {
+        predict_time: 791.272920881,
+        total_time: 791.282155
+      }
     },
     failed: {
       id: 'test-failed-789',
