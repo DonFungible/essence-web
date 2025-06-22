@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { ArrowLeft, Cpu, Database, Palette, BarChart2, ExternalLink } from "lucide-react"
+import dynamic from "next/dynamic"
+import { ImageGenerationForm } from "./image-generation-form"
 
 interface ModelDetailPageProps {
   params: {
@@ -34,7 +36,8 @@ async function findModelById(modelId: string): Promise<ModelType | null> {
 }
 
 export default async function ModelDetailPage({ params }: ModelDetailPageProps) {
-  const model = await findModelById(params.modelId)
+  const { modelId } = await params
+  const model = await findModelById(modelId)
 
   if (!model) {
     return (
@@ -141,7 +144,8 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
               {/* Right Column: Example Images & Model Info */}
               <div className="space-y-6">
                 {/* Model Output Info for Database Models */}
-                {model.id.includes('-') && (
+                {/* Check if it's a database model (long alphanumeric ID like Replicate job ID) */}
+                {model.id.length > 20 && (
                   <Card className="shadow-xl">
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center">
@@ -160,29 +164,13 @@ export default async function ModelDetailPage({ params }: ModelDetailPageProps) 
                   </Card>
                 )}
 
-                {/* Example Images */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Example Images</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {model.exampleImages.map((src, index) => (
-                        <div key={index} className="rounded-lg overflow-hidden aspect-square relative group">
-                          <SafeImage
-                            src={src || "/placeholder.svg"}
-                            alt={`Example image ${index + 1}`}
-                            fill
-                            className="object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <p className="text-white text-xs p-2 text-center">Example output</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* Image Generation - Only for Database Models */}
+                {model.id.length > 20 && (
+                  <ImageGenerationForm 
+                    modelId={model.id} 
+                    triggerWord={(model as any).trigger_word}
+                  />
+                )}
               </div>
             </div>
           </div>
