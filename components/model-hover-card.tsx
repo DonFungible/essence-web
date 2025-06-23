@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { CheckCircle, Users, MessageSquare } from "lucide-react"
+import { CheckCircle, Users, MessageSquare, PictureInPicture } from "lucide-react"
 
 interface ModelHoverCardProps {
   name: string
@@ -31,7 +31,10 @@ export default function ModelHoverCard({
         {/* Image Container: Always full height */}
         <div className="absolute inset-0">
           <Image
-            src={imageUrl || `/placeholder.svg?width=300&height=400&query=model+image+${encodeURIComponent(name)}`}
+            src={
+              imageUrl ||
+              `/placeholder.svg?width=300&height=400&query=model+image+${encodeURIComponent(name)}`
+            }
             alt={`Image for ${name}`}
             fill
             className="object-cover transition-transform duration-300 ease-in-out group-hover:scale-105"
@@ -46,14 +49,13 @@ export default function ModelHoverCard({
         <div className="absolute inset-x-0 bottom-0 p-5 text-white">
           {/* Name & Verified Icon */}
           <div className="flex items-center mb-2">
-            <h3 className="text-xl font-serif font-medium mr-1.5 text-white">{name}</h3>
-            {isVerified && <CheckCircle className="w-5 h-5 text-sky-400" />}
+            <h3 className="text-xl font-medium mr-1.5 text-white">{name}</h3>
           </div>
 
           {/* Stats (Followers, Posts) */}
           <div className="flex items-center text-xs text-slate-300">
             <div className="flex items-center mr-4">
-              <Users className="w-3.5 h-3.5 mr-1" />
+              <PictureInPicture className="w-3.5 h-3.5 mr-1" />
               <span>{followers}</span>
             </div>
             <div className="flex items-center">

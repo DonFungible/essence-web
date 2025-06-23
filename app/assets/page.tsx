@@ -1,6 +1,6 @@
 import type React from "react"
-import { Sidebar } from "@/components/sidebar"
-import { TopBar } from "@/components/top-bar"
+import Sidebar from "@/components/sidebar"
+import TopBar from "@/components/top-bar"
 import AssetsView from "@/components/assets-view"
 import { getAssets } from "@/lib/assets-data"
 
@@ -11,7 +11,7 @@ export default async function AssetsPage() {
   const initialAssets = await getAssets()
 
   return (
-    <div className="flex h-screen bg-slate-50" style={{ "--top-bar-height": topBarHeight } as React.CSSProperties}>
+    <div className="flex h-screen" style={{ "--top-bar-height": topBarHeight } as React.CSSProperties}>
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar />

@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import SafeImage from "@/components/safe-image" // Assuming you have this component
-import { AlertTriangle, ImageIcon } from "lucide-react"
+import { AlertTriangle, ImageIcon, Loader2, CheckCircle, XCircle, Clock } from "lucide-react"
 
 interface RecentGenerationsGridProps {
   modelId: string
@@ -28,13 +28,30 @@ const getStatusBadgeVariant = (status: GenerationRecord["status"]) => {
   }
 }
 
+const getStatusIcon = (status: GenerationRecord["status"]) => {
+  switch (status) {
+    case "succeeded":
+      return <CheckCircle className="w-3 h-3" />
+    case "failed":
+      return <XCircle className="w-3 h-3" />
+    case "processing":
+      return <Loader2 className="w-3 h-3 animate-spin" />
+    case "pending":
+      return <Clock className="w-3 h-3" />
+    default:
+      return <Clock className="w-3 h-3" />
+  }
+}
+
 export default function RecentGenerationsGrid({ modelId, modelName }: RecentGenerationsGridProps) {
   const { data: generations, isLoading, isError, error } = useRecentGenerations(modelId)
 
   if (isLoading) {
     return (
       <div>
-        <h2 className="text-2xl font-semibold text-slate-700 mb-4">Recent Generations for {modelName}</h2>
+        <h2 className="text-2xl font-semibold text-slate-700 mb-4">
+          Recent Generations for {modelName}
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i} className="overflow-hidden">
@@ -55,7 +72,9 @@ export default function RecentGenerationsGrid({ modelId, modelName }: RecentGene
       <div className="text-center py-10">
         <AlertTriangle className="mx-auto h-12 w-12 text-red-500 mb-4" />
         <h3 className="text-xl font-semibold text-red-600">Error loading generations</h3>
-        <p className="text-slate-500">{(error as Error)?.message || "Could not fetch recent image generations."}</p>
+        <p className="text-slate-500">
+          {(error as Error)?.message || "Could not fetch recent image generations."}
+        </p>
       </div>
     )
   }
@@ -72,7 +91,9 @@ export default function RecentGenerationsGrid({ modelId, modelName }: RecentGene
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-slate-700 mb-6">Recent Generations by {modelName}</h2>
+      <h2 className="text-2xl font-semibold text-slate-700 mb-6">
+        Recent Generations by {modelName}
+      </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {generations.map((gen) => (
           <Link key={gen.id} href={`/image/${gen.id}`} passHref>
@@ -89,16 +110,16 @@ export default function RecentGenerationsGrid({ modelId, modelName }: RecentGene
                   />
                 ) : (
                   <div className="text-slate-400 p-4 text-center">
-                    <ImageIcon className="h-10 w-10 mx-auto mb-2" />
-                    {gen.status === "pending" || gen.status === "processing" ? "Processing..." : "No image"}
+                    {gen.status === "pending" || gen.status === "processing" ? (
+                      <Loader2 className="h-10 w-10 mx-auto mb-2 animate-spin text-blue-500" />
+                    ) : (
+                      <ImageIcon className="h-10 w-10 mx-auto mb-2" />
+                    )}
+                    {gen.status === "pending" || gen.status === "processing"
+                      ? "Processing..."
+                      : "No image"}
                   </div>
                 )}
-                <Badge
-                  variant={getStatusBadgeVariant(gen.status) as any} // Cast as any if custom variants aren't in default BadgeProps
-                  className="absolute top-2 right-2 capitalize"
-                >
-                  {gen.status}
-                </Badge>
               </div>
               <CardContent className="p-4 flex-grow flex flex-col justify-between">
                 <div>
@@ -109,7 +130,9 @@ export default function RecentGenerationsGrid({ modelId, modelName }: RecentGene
                     {gen.prompt}
                   </p>
                 </div>
-                <p className="text-xs text-slate-500 mt-2">{new Date(gen.created_at).toLocaleDateString()}</p>
+                <p className="text-xs text-slate-500 mt-2">
+                  {new Date(gen.created_at).toLocaleDateString()}
+                </p>
               </CardContent>
             </Card>
           </Link>

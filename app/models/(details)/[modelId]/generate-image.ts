@@ -26,8 +26,31 @@ interface GenerateImageResult {
   replicatePredictionId?: string
 }
 
-export async function generateImage(modelId: string, params: GenerationParams): Promise<GenerateImageResult> {
-  console.log("🎯 Starting image generation:", { modelId, params })
+export async function generateImage(formData: FormData): Promise<GenerateImageResult>
+export async function generateImage(modelId: string, params: GenerationParams): Promise<GenerateImageResult>
+export async function generateImage(formDataOrModelId: FormData | string, params?: GenerationParams): Promise<GenerateImageResult> {
+  // Handle FormData from prompt bar
+  if (formDataOrModelId instanceof FormData) {
+    const modelId = formDataOrModelId.get("model_id") as string
+    const extractedParams: GenerationParams = {
+      prompt: formDataOrModelId.get("prompt") as string,
+      raw: formDataOrModelId.get("raw_mode") === "true",
+      finetune_strength: parseFloat(formDataOrModelId.get("finetune_strength") as string) || 1.5,
+      aspect_ratio: "1:1",
+      output_format: "jpg",
+      safety_tolerance: 2,
+      image_prompt_strength: 0.1,
+    }
+    console.log("🎯 Starting image generation from FormData:", { modelId, extractedParams })
+    return generateImageInternal(modelId, extractedParams)
+  }
+  
+  // Handle direct function call with modelId and params
+  console.log("🎯 Starting image generation:", { modelId: formDataOrModelId, params })
+  return generateImageInternal(formDataOrModelId, params!)
+}
+
+async function generateImageInternal(modelId: string, params: GenerationParams): Promise<GenerateImageResult> {
 
   try {
     // 1. Get model data from database
@@ -37,9 +60,9 @@ export async function generateImage(modelId: string, params: GenerationParams): 
     let { data: model, error: modelError } = await supabase
       .from("training_jobs")
       .select("output_model_url, trigger_word")
-      .eq("id", modelId)
+      .eq("replicate_job_id", modelId)
       .maybeSingle()
-
+    console.log("LOOKUP model", model)
     // Second try: fall back to Replicate’s prediction/job ID
     if ((!model || modelError) && !modelError?.code?.startsWith("PGRST")) {
       const { data: altModel, error: altError } = await supabase

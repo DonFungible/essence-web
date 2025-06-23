@@ -3,7 +3,6 @@ import Image from "next/image"
 import { ArrowLeft, Cpu, Palette } from "lucide-react"
 
 import ModelClientContent from "./model-client-content"
-import { QueryProvider } from "@/components/query-provider"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
@@ -31,7 +30,8 @@ async function findModelById(id: string): Promise<ModelType | null> {
 }
 
 export default async function ModelPage({ params }: Props) {
-  const model = await findModelById(params.modelId)
+  const { modelId } = await params
+  const model = await findModelById(modelId)
 
   if (!model) {
     return (
@@ -67,14 +67,18 @@ export default async function ModelPage({ params }: Props) {
         <TopBar />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl">
           <div className="max-w-7xl mx-auto">
-            <Button variant="outline" asChild className="mb-6 text-slate-600 hover:bg-slate-50">
-              <Link href="/models">
-                <ArrowLeft className="mr-2 h-4 w-4" /> All Models
-              </Link>
-            </Button>
-
-            <header className="space-y-2 mb-8">
+            <header className="space-y-2 mb-8 relative">
               <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  asChild
+                  className="text-slate-600 my-auto absolute -translate-x-full left-0"
+                >
+                  <Link href="/models">
+                    <ArrowLeft className="h-4 w-4" />
+                  </Link>
+                </Button>
+
                 <Cpu className="mr-3 h-8 w-8 text-slate-600" />
                 <h1 className="text-3xl font-bold tracking-tight">{model.name}</h1>
               </div>
@@ -105,9 +109,7 @@ export default async function ModelPage({ params }: Props) {
               </div>
             </section>
 
-            <QueryProvider>
-              <ModelClientContent model={model} />
-            </QueryProvider>
+            <ModelClientContent model={model} />
           </div>
         </main>
       </div>
