@@ -1,108 +1,87 @@
-export const models = [
-  {
-    id: "essence-2-5",
-    name: "Essence 2.5",
-    version: "2.5 (Stable)",
-    description:
-      "A versatile and robust model trained for high-fidelity photorealism and artistic styles. Excels at complex scenes, lighting, and textures.",
-    trainingData: {
-      size: "1.2M+ images",
-      sources: ["Unsplash", "ArtStation", "Licensed Datasets"],
-    },
-    styles: ["Photorealism", "Cinematic", "Surrealism", "Ansel Adams", "Studio Ghibli"],
-    metrics: [
-      { name: "Coherence", value: 95 },
-      { name: "Style Adherence", value: 92 },
-      { name: "Prompt Following", value: 88 },
-      { name: "Speed", value: 75 },
-    ],
-    exampleImages: ["/surreal-landscape-mirror.png", "/pastel-architecture-horse.png", "/vintage-white-car.png"],
-  },
-  {
-    id: "essence-3-0-alpha",
-    name: "Essence 3.0 Alpha",
-    version: "3.0 (Alpha)",
-    description:
-      "The next generation of Essence. Features improved prompt understanding and faster generation times. May produce unexpected results.",
-    trainingData: {
-      size: "2.5M+ images & text pairs",
-      sources: ["Proprietary V3 Dataset", "Common Crawl (filtered)"],
-    },
-    styles: ["Abstract", "Minimalist", "Sci-Fi", "Zaha Hadid", "Cyberpunk"],
-    metrics: [
-      { name: "Coherence", value: 91 },
-      { name: "Style Adherence", value: 85 },
-      { name: "Prompt Following", value: 94 },
-      { name: "Speed", value: 90 },
-    ],
-    exampleImages: ["/futuristic-helmet.png", "/minimalist-brushed-metal.png", "/abstract-sci-fi-cityscape.png"],
-  },
-  {
-    id: "anime-v4",
-    name: "Anime V4",
-    version: "4.1 (Production)",
-    description:
-      "Specialized model for generating high-quality anime and manga-style illustrations. Strong understanding of character design, dynamic poses, and vibrant color palettes.",
-    trainingData: {
-      size: "800K+ curated illustrations",
-      sources: ["Danbooru (SFW)", "Pixiv (SFW)", "Licensed Artist Works"],
-    },
-    styles: ["Modern Anime", "90s Retro", "Manga (B&W)", "Chibi", "Makoto Shinkai"],
-    metrics: [
-      { name: "Coherence", value: 96 },
-      { name: "Style Adherence", value: 98 },
-      { name: "Prompt Following", value: 85 },
-      { name: "Speed", value: 80 },
-    ],
-    exampleImages: ["/anime-fantasy-landscape.png", "/placeholder-rfmi4.png", "/chibi-anime-ramen.png"],
-  },
-]
-
-export type ModelType = (typeof models)[0]
-
-export const getModelById = (id: string): ModelType | undefined => {
-  return models.find((m) => m.id === id)
-}
-
-// Transform database training job to UI model format  
-export function transformDbModelToUIModel(dbModel: {
+export interface DatabaseModel {
   id: string
   replicate_job_id?: string | null
   trigger_word?: string | null
-  status?: string
+  status?: string | null
   training_steps?: number | null
   captioning?: string | null
   predict_time?: number | null
   completed_at?: string | null
-}): ModelType {
+  output_model_url?: string | null // URL to the .zip file from Replicate
+  input_images_url?: string | null // URL to the input_images.zip
+  total_time?: number | null
+  created_at?: string
+  preview_image_url?: string | null // Public URL from Supabase Storage
+  description?: string | null
+}
+
+export type ModelType = {
+  id: string // This will be replicate_job_id if available, otherwise db id
+  name: string
+  version: string
+  description: string
+  previewImageUrl?: string // URL for the card image
+  trainingData: {
+    size: string // e.g., "Custom dataset" or specific count
+    sources: string[] // e.g., ["User uploaded"]
+    styles?: string[]
+    imageCount?: number
+  }
+  styles: string[] // e.g. trigger word, captioning method
+  metrics: Array<{ name: string; value: number | string }>
+  exampleImages: string[] // Fallback or specific example images if available (not from output_model_url directly if it's a zip)
+  dbId: string // Keep original database ID for linking if needed
+  status?: string | null
+  outputModelUrl?: string | null // Direct URL to the replicate output model zip
+}
+
+/* ------------------------------------------------------------------
+ * Compatibility shims — remove after all legacy imports are cleaned.
+ * They make sure old files that still do
+ *   import { models, getModelById } from "@/lib/models-data"
+ * keep compiling, while returning no mock data.
+ * -----------------------------------------------------------------*/
+
+// Empty array – keeps tree-shaken out in production
+export const models: ModelType[] = []
+
+// Stub helper – always returns undefined
+export function getModelById(_: string): ModelType | undefined {
+  return undefined
+}
+
+// Removed getModelById as static models are gone
+
+export function transformDbModelToUIModel(dbModel: DatabaseModel): ModelType {
   return {
-    id: dbModel.replicate_job_id || dbModel.id,
-    name: dbModel.trigger_word || `Model ${dbModel.id.substring(0, 8)}`,
-    version: `v1.0 (${dbModel.status})`,
-    description: `Custom trained model using ${dbModel.training_steps || 'default'} training steps. ${
-      dbModel.captioning ? `Uses ${dbModel.captioning} captioning.` : ''
-    } ${dbModel.predict_time ? `Training completed in ${Math.round(dbModel.predict_time / 60)} minutes.` : ''}`.trim(),
+    id: dbModel.replicate_job_id || dbModel.id, // Use replicate_job_id as primary ID for UI consistency if present
+    dbId: dbModel.id, // Store the original database ID
+    name: dbModel.trigger_word || `Model ${dbModel.id.substring(0, 6)}`,
+    version: `v1.0 (${dbModel.status || "N/A"})`,
+    description:
+      dbModel.description ||
+      `Custom trained model. Trigger word: ${dbModel.trigger_word || "not set"}. Status: ${dbModel.status || "N/A"}.`,
+    previewImageUrl: dbModel.preview_image_url || undefined,
     trainingData: {
-      size: "Custom dataset",
+      size: "Custom dataset", // Could be enhanced if image count is stored
       sources: ["User uploaded dataset"],
     },
     styles: [
       dbModel.trigger_word || "Custom Style",
       dbModel.captioning || "Auto-captioned",
+      dbModel.captioning ? `Uses ${dbModel.captioning} captioning.` : "",
       "Fine-tuned",
-      "LoRA"
-    ],
+    ].filter(Boolean) as string[],
     metrics: [
-      { name: "Status", value: dbModel.status === 'succeeded' ? 100 : 0 },
-      { name: "Training Steps", value: dbModel.training_steps ? Math.min(100, (dbModel.training_steps / 1000) * 100) : 50 },
-      { name: "Completion", value: dbModel.completed_at ? 100 : 0 },
-      { name: "Custom Model", value: 100 },
+      { name: "Status", value: dbModel.status || "Unknown" },
+      { name: "Training Steps", value: dbModel.training_steps || "N/A" },
+      // Add more relevant metrics if available
     ],
-    exampleImages: [
-      // Use placeholder images for now - in future could extract from input_images_url
-      "/placeholder.svg",
-      "/placeholder-user.jpg", 
-      "/placeholder.jpg"
-    ],
+    // exampleImages are tricky if output_model_url is a zip.
+    // For now, rely on previewImageUrl and the card's placeholder.
+    // If you have a way to get specific image URLs from the Replicate output (e.g., if webhook stores them), populate here.
+    exampleImages: [],
+    status: dbModel.status,
+    outputModelUrl: dbModel.output_model_url,
   }
 }

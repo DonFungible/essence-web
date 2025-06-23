@@ -1,45 +1,42 @@
 import Link from "next/link"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
-import { models as exampleModelsData, type ModelType } from "@/lib/models-data" // Renamed to avoid conflict
+import type { ModelType } from "@/lib/models-data" // Removed exampleModelsData
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Search, Filter, SortAsc } from "lucide-react"
-import ModelHoverCard from "@/components/model-hover-card" // Import the new card
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Plus, Search, Filter, SortAsc, ImageOff } from "lucide-react"
+import ModelHoverCard from "@/components/model-hover-card"
+import { getTrainedModelsFromDatabase } from "@/lib/server-models" // Direct import
 
 export default async function ModelsPage() {
   let trainedModels: ModelType[] = []
   try {
-    const { getTrainedModelsFromDatabase } = await import("@/lib/server-models")
     trainedModels = await getTrainedModelsFromDatabase()
   } catch (error) {
     console.error("Error loading trained models:", error)
+    // Potentially set an error state to show in UI
     trainedModels = []
   }
 
-  // Prepare data for ModelHoverCard
-  const mapModelToCardProps = (model: ModelType, isCustom: boolean) => ({
+  const mapModelToCardProps = (model: ModelType) => ({
     name: model.name,
-    description: model.description, // Still passed, but not used by the card
+    // Use previewImageUrl if available, then exampleImages[0] (if any), then placeholder
+    // Since exampleImages is now likely empty for DB models, this simplifies
     imageUrl:
-      model.exampleImages[0] ||
+      model.previewImageUrl ||
+      (model.exampleImages && model.exampleImages.length > 0 ? model.exampleImages[0] : undefined) || // Keep this for future if exampleImages get populated
       `/placeholder.svg?width=300&height=400&query=${encodeURIComponent(model.name)}`,
-    followers: Math.floor(Math.random() * (isCustom ? 1000 : 500)) + 50,
-    posts: Math.floor(Math.random() * (isCustom ? 200 : 100)) + 10,
-    isVerified: isCustom,
-    href: `/models/${model.id}`,
+    // Mock data for followers/posts, replace with real data if available
+    // For now, let's use something generic or from model.styles / model.metrics
+    followers: model.styles.length || 0, // Example: number of styles/tags
+    posts: model.metrics.find((m) => m.name === "Generations")?.value || 0, // Example: number of generations if tracked
+    isVerified: model.status === "succeeded", // Example: "succeeded" models are "verified"
+    href: `/models/${model.id}`, // model.id is now replicate_job_id or dbId
+    description: model.description || "",
   })
 
-  const displayTrainedModels = trainedModels.map((model) => mapModelToCardProps(model, true))
-  const displayExampleModels = exampleModelsData.map((model) => mapModelToCardProps(model, false))
+  const displayModels = trainedModels.map(mapModelToCardProps)
 
   return (
     <div className="flex h-screen bg-slate-100">
@@ -50,7 +47,8 @@ export default async function ModelsPage() {
           <div className="mx-auto">
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h1 className="text-3xl font-bold text-slate-800">Style Models</h1>
+                <h1 className="text-3xl font-bold text-slate-800">Your Style Models</h1>
+                <p className="text-slate-500 mt-1">Browse and manage your custom trained style models.</p>
               </div>
               <Button asChild>
                 <Link href="/train">
@@ -60,69 +58,67 @@ export default async function ModelsPage() {
               </Button>
             </div>
 
-            {displayTrainedModels.length > 0 && (
-              <div className="mb-12">
-                {/* Search and Filter Bar */}
-                <div className="mb-6 space-y-4">
-                  <div className="flex flex-col lg:flex-row gap-4">
-                    {/* Search Input */}
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
-                      <Input
-                        placeholder="Search your models..."
-                        className="pl-10 bg-slate-50 border-slate-200 focus:bg-white"
-                      />
-                    </div>
-
-                    {/* Filters */}
-                    <div className="flex flex-wrap gap-3">
-                      <Select>
-                        <SelectTrigger className="w-[140px] bg-slate-50 border-slate-200">
-                          <Filter className="h-4 w-4 mr-2" />
-                          <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Status</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="training">Training</SelectItem>
-                          <SelectItem value="failed">Failed</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Select>
-                        <SelectTrigger className="w-[140px] bg-slate-50 border-slate-200">
-                          <SelectValue placeholder="Style" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Styles</SelectItem>
-                          <SelectItem value="photorealistic">Photorealistic</SelectItem>
-                          <SelectItem value="artistic">Artistic</SelectItem>
-                          <SelectItem value="anime">Anime</SelectItem>
-                          <SelectItem value="abstract">Abstract</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Select>
-                        <SelectTrigger className="w-[140px] bg-slate-50 border-slate-200">
-                          <SortAsc className="h-4 w-4 mr-2" />
-                          <SelectValue placeholder="Sort by" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="newest">Newest First</SelectItem>
-                          <SelectItem value="oldest">Oldest First</SelectItem>
-                          <SelectItem value="name">Name A-Z</SelectItem>
-                          <SelectItem value="popular">Most Popular</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+            {/* Search and Filter Bar */}
+            <div className="mb-6 space-y-4">
+              <div className="flex flex-col lg:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search your models by name or trigger word..."
+                    className="pl-10 bg-slate-50 border-slate-200 focus:bg-white"
+                    // Add onChange handler for actual search functionality
+                  />
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {displayTrainedModels.map((props) => (
-                    <ModelHoverCard key={props.href} {...props} />
-                  ))}
+                <div className="flex flex-wrap gap-3">
+                  <Select>
+                    <SelectTrigger className="w-full sm:w-[140px] bg-slate-50 border-slate-200">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="succeeded">Completed</SelectItem>
+                      <SelectItem value="processing">Training</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                      {/* Add other relevant statuses */}
+                    </SelectContent>
+                  </Select>
+                  {/* Add more filters if needed, e.g., by base model, date range */}
+                  <Select>
+                    <SelectTrigger className="w-full sm:w-[140px] bg-slate-50 border-slate-200">
+                      <SortAsc className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest First</SelectItem>
+                      <SelectItem value="oldest">Oldest First</SelectItem>
+                      <SelectItem value="name_asc">Name A-Z</SelectItem>
+                      <SelectItem value="name_desc">Name Z-A</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+            </div>
+
+            {displayModels.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                {displayModels.map((props) => (
+                  <ModelHoverCard key={props.href} {...props} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg">
+                <ImageOff className="mx-auto h-12 w-12 text-slate-400" />
+                <h3 className="mt-2 text-lg font-medium text-slate-700">No Models Yet</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  You haven&apos;t trained any models. Get started by training your first one!
+                </p>
+                <Button asChild className="mt-6">
+                  <Link href="/train">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Train New Model
+                  </Link>
+                </Button>
               </div>
             )}
           </div>
