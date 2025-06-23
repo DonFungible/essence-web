@@ -1,9 +1,9 @@
-import { ArrowLeft, ArrowRight, Search, Command, Filter, Zap } from "lucide-react"
+import { Search, Command, Filter, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 // Removed Link, Avatar, DropdownMenu, createClient, signOut, UserCircle, Settings, LogOut
 
-export default function TopBar() {
+export function TopBar() {
   // No user fetching or user-specific logic
   return (
     <div className="h-16 flex items-center justify-between px-6 bg-white border-b border-slate-200 sticky top-0 z-10">
@@ -34,3 +34,5 @@ export default function TopBar() {
     </div>
   )
 }
+
+export default TopBar

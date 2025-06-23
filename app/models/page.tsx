@@ -1,27 +1,35 @@
 import Link from "next/link"
-import SafeImage from "@/components/safe-image"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
-import { models, type ModelType } from "@/lib/models-data"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { models as exampleModelsData, type ModelType } from "@/lib/models-data" // Renamed to avoid conflict
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Plus, Sparkles } from "lucide-react"
+import { Plus } from "lucide-react"
+import ModelHoverCard from "@/components/model-hover-card" // Import the new card
 
 export default async function ModelsPage() {
-  // Fetch trained models from database using dynamic import
   let trainedModels: ModelType[] = []
   try {
     const { getTrainedModelsFromDatabase } = await import("@/lib/server-models")
     trainedModels = await getTrainedModelsFromDatabase()
   } catch (error) {
-    console.error('Error loading trained models:', error)
+    console.error("Error loading trained models:", error)
     trainedModels = []
   }
-  
-  // Combine trained models with example models
-  const allModels: ModelType[] = [...trainedModels, ...models]
-  
+
+  // Prepare data for ModelHoverCard
+  const mapModelToCardProps = (model: ModelType, isCustom: boolean) => ({
+    name: model.name,
+    description: model.description, // Still passed, but not used by the card
+    imageUrl: model.exampleImages[0] || `/placeholder.svg?width=300&height=400&query=${encodeURIComponent(model.name)}`,
+    followers: Math.floor(Math.random() * (isCustom ? 1000 : 500)) + 50,
+    posts: Math.floor(Math.random() * (isCustom ? 200 : 100)) + 10,
+    isVerified: isCustom,
+    href: `/models/${model.id}`,
+  })
+
+  const displayTrainedModels = trainedModels.map((model) => mapModelToCardProps(model, true))
+  const displayExampleModels = exampleModelsData.map((model) => mapModelToCardProps(model, false))
+
   return (
     <div className="flex h-screen bg-slate-100">
       <Sidebar />
@@ -41,98 +49,24 @@ export default async function ModelsPage() {
               </Button>
             </div>
 
-            {/* Your Trained Models Section */}
-            {trainedModels.length > 0 && (
+            {displayTrainedModels.length > 0 && (
               <div className="mb-12">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {trainedModels.map((model) => (
-                    <Card key={model.id} className="flex flex-col hover:shadow-xl transition-shadow border-blue-200">
-                      <CardHeader>
-                        <div className="w-full h-40 rounded-lg overflow-hidden mb-4">
-                          <SafeImage
-                            src={model.exampleImages[0] || "/placeholder.svg"}
-                            alt={`Example from ${model.name}`}
-                            width={400}
-                            height={250}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-xl">{model.name}</CardTitle>
-                          <Badge variant="default" className="bg-blue-100 text-blue-800">
-                            Custom
-                          </Badge>
-                        </div>
-                        <Badge variant="secondary" className="w-fit">
-                          {model.version}
-                        </Badge>
-                        <CardDescription className="pt-2">{model.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="flex-grow">
-                        <h4 className="text-sm font-semibold text-slate-600 mb-2">Training Details</h4>
-                        <div className="flex flex-wrap gap-1.5">
-                          {model.styles.slice(0, 4).map((style) => (
-                            <Badge key={style} variant="outline">
-                              {style}
-                            </Badge>
-                          ))}
-                        </div>
-                      </CardContent>
-                      <CardFooter>
-                        <Button asChild className="w-full">
-                          <Link href={`/models/${model.id}`}>
-                            Use Model <ArrowRight className="ml-2 h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </CardFooter>
-                    </Card>
+                <h2 className="text-2xl font-bold text-slate-800 mb-6">Your Trained Models</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {displayTrainedModels.map((props) => (
+                    <ModelHoverCard key={props.href} {...props} />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Example Models Section */}
             <div>
-              {trainedModels.length > 0 && (
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Example Models</h2>
-              )}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {models.map((model) => (
-                  <Card key={model.id} className="flex flex-col hover:shadow-xl transition-shadow">
-                    <CardHeader>
-                      <div className="w-full h-40 rounded-lg overflow-hidden mb-4">
-                        <SafeImage
-                          src={model.exampleImages[0] || "/placeholder.svg"}
-                          alt={`Example from ${model.name}`}
-                          width={400}
-                          height={250}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <CardTitle className="text-xl">{model.name}</CardTitle>
-                      <Badge variant="secondary" className="w-fit">
-                        {model.version}
-                      </Badge>
-                      <CardDescription className="pt-2">{model.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-grow">
-                      <h4 className="text-sm font-semibold text-slate-600 mb-2">Key Styles</h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {model.styles.slice(0, 4).map((style) => (
-                          <Badge key={style} variant="outline">
-                            {style}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                    <CardFooter>
-                      <Button asChild className="w-full" variant="outline">
-                        <Link href={`/models/${model.id}`}>
-                          Explore Model <ArrowRight className="ml-2 h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </CardFooter>
-                  </Card>
+              <h2 className="text-2xl font-bold text-slate-800 mb-6">
+                {displayTrainedModels.length > 0 ? "Example Models" : "Explore Models"}
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {displayExampleModels.map((props) => (
+                  <ModelHoverCard key={props.href} {...props} />
                 ))}
               </div>
             </div>
