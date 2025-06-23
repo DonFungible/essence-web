@@ -38,4 +38,4 @@ async function showMigration() {
 }
 
 // Run the migration display
-showMigration() 
+showMigration()

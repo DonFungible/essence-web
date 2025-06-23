@@ -76,4 +76,4 @@ export async function findModelById(modelId: string): Promise<ModelType | null> 
   const trainedModels = await getTrainedModelsFromDatabase()
   const dbModel = trainedModels.find(model => model.id === modelId)
   return dbModel || null
-} 
+}

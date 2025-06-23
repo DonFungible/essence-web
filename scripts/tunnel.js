@@ -82,4 +82,4 @@ if (require.main === module) {
   setupTunnel();
 }
 
-module.exports = { setupTunnel }; 
+module.exports = { setupTunnel };

@@ -237,4 +237,4 @@ async function downloadAndStoreImage(imageUrl: string, generationId: string) {
       error: error.message
     }
   }
-} 
+}

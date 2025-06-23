@@ -118,4 +118,4 @@ export async function generateImage(modelId: string, prompt: string): Promise<Ge
       error: `Unexpected error: ${error.message || 'Unknown error'}` 
     }
   }
-} 
+}

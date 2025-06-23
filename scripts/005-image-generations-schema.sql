@@ -116,4 +116,4 @@ COMMENT ON COLUMN image_generations.supabase_image_url IS
 'Public URL to image stored in Supabase Storage';
 
 COMMENT ON COLUMN image_generations.session_id IS 
-'Session identifier for anonymous users to track their generations'; 
+'Session identifier for anonymous users to track their generations';

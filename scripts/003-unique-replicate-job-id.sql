@@ -34,4 +34,4 @@ ON training_jobs (replicate_job_id);
 
 -- Add comment to document the constraint
 COMMENT ON CONSTRAINT unique_replicate_job_id ON training_jobs IS 
-'Ensures each Replicate job ID is unique to prevent duplicate webhook processing'; 
+'Ensures each Replicate job ID is unique to prevent duplicate webhook processing';

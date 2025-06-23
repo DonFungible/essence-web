@@ -5,29 +5,29 @@ This guide helps you set up tunneling to test Replicate webhooks locally during 
 ## Quick Start
 
 1. **Set up ngrok** (one-time setup):
-   ```bash
+   \`\`\`bash
    # Sign up at https://ngrok.com and get your auth token
    # Then set it up:
    ngrok config add-authtoken YOUR_AUTH_TOKEN_HERE
    
    # Or set as environment variable:
    export NGROK_AUTHTOKEN=YOUR_AUTH_TOKEN_HERE
-   ```
+   \`\`\`
 
 2. **Start development with tunnel**:
-   ```bash
+   \`\`\`bash
    # Option 1: Start dev server and tunnel together
    pnpm run dev:tunnel
    
    # Option 2: Start tunnel separately
    pnpm run tunnel
-   ```
+   \`\`\`
 
 3. **Get your webhook URL**:
    The tunnel script will display your webhook URL:
-   ```
+   \`\`\`
    🪝 Webhook URL: https://abc123.ngrok-free.app/api/replicate-webhook
-   ```
+   \`\`\`
 
 4. **Use in Replicate**:
    Copy the webhook URL and use it in your Replicate model training or prediction calls.
@@ -52,14 +52,14 @@ The webhook automatically creates and updates database records. No manual databa
 
 Make sure you have these set in your `.env.local`:
 
-```env
+\`\`\`env
 # Required for Replicate API calls  
 REPLICATE_API_TOKEN=your_replicate_token_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 # Optional for persistent tunnel domains
 NGROK_AUTHTOKEN=your_ngrok_auth_token_here
-```
+\`\`\`
 
 ## Webhook Testing
 
@@ -74,7 +74,7 @@ Your webhook endpoint is at `/api/replicate-webhook` and handles:
 
 Use the built-in testing scripts:
 
-```bash
+\`\`\`bash
 # Test basic processing webhook
 pnpm run test:webhook
 
@@ -83,12 +83,12 @@ pnpm run test:webhook:success
 
 # Test failure scenario
 pnpm run test:webhook:failed
-```
+\`\`\`
 
 ### Manual Testing
 
 You can also test manually with curl:
-```bash
+\`\`\`bash
 # Test processing webhook (no signature required)
 curl -X POST https://your-domain.ngrok-free.app/api/replicate-webhook \
   -H "Content-Type: application/json" \
@@ -98,7 +98,7 @@ curl -X POST https://your-domain.ngrok-free.app/api/replicate-webhook \
 curl -X POST https://your-domain.ngrok-free.app/api/replicate-webhook \
   -H "Content-Type: application/json" \
   -d '{"id":"test-456","status":"succeeded","output":"model-abc123"}'
-```
+\`\`\`
 
 ## Troubleshooting
 
@@ -120,6 +120,6 @@ curl -X POST https://your-domain.ngrok-free.app/api/replicate-webhook \
 ## Production Deployment
 
 For production, you don't need tunneling. Deploy your app and use your production URL:
-```
+\`\`\`
 https://yourdomain.com/api/replicate-webhook
-``` 
+\`\`\`

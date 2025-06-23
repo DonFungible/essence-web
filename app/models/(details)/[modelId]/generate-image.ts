@@ -1,7 +1,7 @@
 "use server"
 
 import Replicate from "replicate"
-import { createClient } from '@/utils/supabase/server'
+import { createClient } from "@/utils/supabase/server"
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN!,
@@ -32,43 +32,55 @@ export async function generateImage(modelId: string, params: GenerationParams): 
   try {
     // 1. Get model data from database
     const supabase = await createClient()
-    
-    const { data: model, error: modelError } = await supabase
-      .from('training_jobs')
-      .select('output_model_url, trigger_word')
-      .eq('replicate_job_id', modelId)
-      .single()
 
-    if (modelError || !model) {
+    // First try: look up by primary key (our own UUID)
+    let { data: model, error: modelError } = await supabase
+      .from("training_jobs")
+      .select("output_model_url, trigger_word")
+      .eq("id", modelId)
+      .maybeSingle()
+
+    // Second try: fall back to Replicate’s prediction/job ID
+    if ((!model || modelError) && !modelError?.code?.startsWith("PGRST")) {
+      const { data: altModel, error: altError } = await supabase
+        .from("training_jobs")
+        .select("output_model_url, trigger_word")
+        .eq("replicate_job_id", modelId)
+        .maybeSingle()
+
+      model = altModel
+      modelError = altError
+    }
+
+    if (!model) {
       console.error("❌ Model not found:", modelError)
       return { success: false, error: "Model not found." }
     }
 
-    const triggerWord = model.trigger_word
-    const finetuneId = model.output_model_url
+    const { output_model_url: finetuneId, trigger_word: triggerWord } = model
+    console.log("🔍 Model data:", { finetuneId, triggerWord, modelId })
 
     // Add validation for required fields
-    console.log("🔍 Model data:", { finetuneId, triggerWord, modelId })
-    
+
     if (!finetuneId || !triggerWord) {
-      console.error("❌ Missing required model data:", { 
-        hasFinetuneId: !!finetuneId, 
-        hasTriggerWord: !!triggerWord 
+      console.error("❌ Missing required model data:", {
+        hasFinetuneId: !!finetuneId,
+        hasTriggerWord: !!triggerWord,
       })
       return { success: false, error: "Model is missing required data for generation." }
     }
 
     const fullPrompt = `${params.prompt} in the style of ${triggerWord}`
-    
+
     // Check webhook URL
     const webhookUrl = process.env.REPLICATE_WEBHOOK_TUNNEL_URL
     if (!webhookUrl) {
       console.error("❌ Missing webhook URL environment variable")
       return { success: false, error: "Webhook configuration missing." }
     }
-    
+
     console.log("🔗 Webhook URL:", `${webhookUrl}/api/image-generation-webhook`)
-  
+
     try {
       const input = {
         prompt: fullPrompt,
@@ -91,21 +103,23 @@ export async function generateImage(modelId: string, params: GenerationParams): 
         model: "black-forest-labs/flux-1.1-pro-ultra-finetuned",
         input: input,
         webhook: `${webhookUrl}/api/image-generation-webhook`,
-        webhook_events_filter: ["start", "output", "logs", "completed"]
+        webhook_events_filter: ["start", "output", "logs", "completed"],
       })
 
       console.log("✅ Replicate prediction created:", {
         id: prediction.id,
         status: prediction.status,
-        webhookUrl: `${webhookUrl}/api/image-generation-webhook`
+        webhookUrl: `${webhookUrl}/api/image-generation-webhook`,
       })
 
       // 3. Get user info (can be null for anonymous users)
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
       // 4. Create database record immediately
       const { data: generationRecord, error: dbError } = await supabase
-        .from('image_generations')
+        .from("image_generations")
         .insert({
           model_id: modelId,
           replicate_prediction_id: prediction.id,
@@ -120,7 +134,7 @@ export async function generateImage(modelId: string, params: GenerationParams): 
           raw: params.raw || false,
           seed: params.seed || null,
           image_prompt: params.image_prompt || null,
-          status: 'pending'
+          status: "pending",
         })
         .select()
         .single()
@@ -138,25 +152,23 @@ export async function generateImage(modelId: string, params: GenerationParams): 
 
       console.log(`✅ Generation record created: ${generationRecord.id}`)
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         generationId: generationRecord.id,
-        replicatePredictionId: prediction.id
+        replicatePredictionId: prediction.id,
       }
-
     } catch (replicateError: any) {
       console.error("❌ Replicate API error:", replicateError)
-      return { 
-        success: false, 
-        error: `Generation failed: ${replicateError.message || 'Unknown error'}` 
+      return {
+        success: false,
+        error: `Generation failed: ${replicateError.message || "Unknown error"}`,
       }
     }
-
   } catch (error: any) {
     console.error("❌ Unexpected error in generateImage:", error)
-    return { 
-      success: false, 
-      error: `Unexpected error: ${error.message || 'Unknown error'}` 
+    return {
+      success: false,
+      error: `Unexpected error: ${error.message || "Unknown error"}`,
     }
   }
 }

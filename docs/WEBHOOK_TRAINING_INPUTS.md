@@ -29,7 +29,7 @@ The webhook has been enhanced to capture and store **training input data** from 
 
 ## 📋 Example Webhook Payload
 
-```json
+\`\`\`json
 {
   "id": "z5phh5qvaxrma0cqjq6b6fmbc0",
   "status": "succeeded",
@@ -48,13 +48,13 @@ The webhook has been enhanced to capture and store **training input data** from 
   "started_at": "2025-06-22T04:02:08.352234Z",
   "logs": "Fine-tuning completed..."
 }
-```
+\`\`\`
 
 ## 🏗️ Database Schema Changes
 
 The following columns have been added to the `training_jobs` table:
 
-```sql
+\`\`\`sql
 -- Training input data
 input_images_url TEXT,     -- Dataset ZIP URL
 trigger_word TEXT,         -- Model trigger word
@@ -66,7 +66,7 @@ completed_at TIMESTAMP WITH TIME ZONE,  -- Completion time
 started_at TIMESTAMP WITH TIME ZONE,    -- Start time
 predict_time REAL,         -- Training time (seconds)
 total_time REAL           -- Total time (seconds)
-```
+\`\`\`
 
 ## 🔧 Setup Required
 
@@ -74,7 +74,7 @@ total_time REAL           -- Total time (seconds)
 
 Run this SQL in your **Supabase SQL Editor**:
 
-```sql
+\`\`\`sql
 -- Add columns for training input data
 ALTER TABLE training_jobs 
 ADD COLUMN IF NOT EXISTS input_images_url TEXT,
@@ -95,11 +95,11 @@ ON training_jobs (completed_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_training_jobs_status 
 ON training_jobs (status);
-```
+\`\`\`
 
 ### 2. Test the Enhanced Webhook
 
-```bash
+\`\`\`bash
 # Show migration SQL
 pnpm migrate:training-inputs
 
@@ -108,13 +108,13 @@ pnpm test:webhook:lifecycle
 
 # Test successful webhook with training data
 pnpm test:webhook:success
-```
+\`\`\`
 
 ## 📈 Usage Examples
 
 ### Query Successful Training Jobs with Inputs
 
-```sql
+\`\`\`sql
 SELECT 
   id,
   replicate_job_id,
@@ -130,19 +130,19 @@ FROM training_jobs
 WHERE status = 'succeeded' 
   AND trigger_word IS NOT NULL
 ORDER BY completed_at DESC;
-```
+\`\`\`
 
 ### Find Training Jobs by Trigger Word
 
-```sql
+\`\`\`sql
 SELECT * FROM training_jobs 
 WHERE trigger_word = 'MYMODEL'
 ORDER BY created_at DESC;
-```
+\`\`\`
 
 ### Calculate Average Training Times
 
-```sql
+\`\`\`sql
 SELECT 
   AVG(predict_time) as avg_training_time,
   AVG(total_time) as avg_total_time,
@@ -150,7 +150,7 @@ SELECT
 FROM training_jobs 
 WHERE status = 'succeeded' 
   AND predict_time IS NOT NULL;
-```
+\`\`\`
 
 ## 🔍 Monitoring & Analytics
 
@@ -162,7 +162,7 @@ WHERE status = 'succeeded'
 
 ### Query Examples
 
-```sql
+\`\`\`sql
 -- Training performance by steps
 SELECT 
   training_steps,
@@ -185,7 +185,7 @@ SELECT
 FROM training_jobs 
 WHERE captioning IS NOT NULL
 GROUP BY captioning;
-```
+\`\`\`
 
 ## 🛠️ Implementation Details
 
@@ -226,4 +226,4 @@ After applying the migration:
 4. **Set up alerts** for failed training jobs
 5. **Create reports** on training performance metrics
 
-This enhancement provides complete visibility into your AI training pipeline! 🚀 
+This enhancement provides complete visibility into your AI training pipeline! 🚀

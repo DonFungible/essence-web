@@ -45,4 +45,4 @@ COMMENT ON COLUMN training_jobs.predict_time IS
 'Time spent on actual training/prediction in seconds';
 
 COMMENT ON COLUMN training_jobs.total_time IS 
-'Total time from start to completion in seconds'; 
+'Total time from start to completion in seconds';

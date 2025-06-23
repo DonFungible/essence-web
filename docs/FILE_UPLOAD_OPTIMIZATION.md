@@ -16,9 +16,9 @@ The original implementation hit several limitations:
 ## Solution: Dual Upload Strategy
 
 ### 🎯 **Optimized Flow (Default)**
-```
+\`\`\`
 User Selects File → Configures Settings → Confirms Training → Direct Upload to Supabase → Replicate Submission
-```
+\`\`\`
 
 **Benefits:**
 - ✅ **No server memory usage**
@@ -29,9 +29,9 @@ User Selects File → Configures Settings → Confirms Training → Direct Uploa
 - ✅ **No unnecessary uploads** (only uploads if user completes flow)
 
 ### 🔄 **Legacy Flow (Backup)**
-```
+\`\`\`
 User → FormData → Server Action → Buffer in Memory → Supabase → Replicate
-```
+\`\`\`
 
 **When used:**
 - User manually disables optimized upload
@@ -41,7 +41,7 @@ User → FormData → Server Action → Buffer in Memory → Supabase → Replic
 ## Implementation Details
 
 ### 1. API Endpoint (`/api/upload-url`)
-```typescript
+\`\`\`typescript
 // Generates signed upload URLs for direct Supabase upload
 POST /api/upload-url
 {
@@ -49,17 +49,17 @@ POST /api/upload-url
   "fileSize": 25000000,
   "fileType": "application/zip"
 }
-```
+\`\`\`
 
 **Response:**
-```json
+\`\`\`json
 {
   "uploadUrl": "https://signed-supabase-url",
   "publicUrl": "https://public-url-for-replicate",
   "storagePath": "public/dataset-uuid.zip",
   "fileName": "dataset-uuid.zip"
 }
-```
+\`\`\`
 
 ### 2. Client Upload Hook (`useFileUpload`)
 - **Progress tracking** with XMLHttpRequest
@@ -67,7 +67,7 @@ POST /api/upload-url
 - **State management** for upload lifecycle
 
 ### 3. Optimized Server Action
-```typescript
+\`\`\`typescript
 // Only handles metadata, no file processing
 startTrainingJobOptimized({
   publicUrl: "https://...",
@@ -76,7 +76,7 @@ startTrainingJobOptimized({
   triggerWord: "TOK",
   captioning: "automatic"
 })
-```
+\`\`\`
 
 ### 4. UI Improvements
 - **Real-time progress bar**
@@ -107,28 +107,28 @@ startTrainingJobOptimized({
 ## Configuration
 
 ### Next.js Config (`next.config.mjs`)
-```javascript
+\`\`\`javascript
 experimental: {
   serverActions: {
     bodySizeLimit: '100mb', // Fallback for legacy flow
   },
 }
-```
+\`\`\`
 
 ### Environment Variables
-```bash
+\`\`\`bash
 # Existing Supabase config
 NEXT_PUBLIC_SUPABASE_URL=your_url
 SUPABASE_SERVICE_ROLE_KEY=your_key
 
 # Optional: For development tunneling
 REPLICATE_WEBHOOK_TUNNEL_URL=https://your-tunnel.ngrok-free.app
-```
+\`\`\`
 
 ## Usage Examples
 
 ### 1. Optimized Upload (Recommended)
-```javascript
+\`\`\`javascript
 // User selects file → Configures → Confirms → Upload happens
 const { uploadFile, progress, uploading } = useFileUpload()
 
@@ -144,15 +144,15 @@ await startTrainingJobOptimized({
   storagePath: uploadResult.storagePath,
   // ... other parameters
 })
-```
+\`\`\`
 
 ### 2. Legacy Upload (Fallback)
-```javascript
+\`\`\`javascript
 // Traditional FormData approach
 const formData = new FormData()
 formData.append('file', file)
 await startTrainingJob(formData)
-```
+\`\`\`
 
 ## Error Handling
 
@@ -170,14 +170,14 @@ await startTrainingJob(formData)
 ## Monitoring & Analytics
 
 ### Upload Success Rates
-```javascript
+\`\`\`javascript
 // Track upload method usage
 metadata: {
   upload_method: "optimized_direct" | "legacy_server_action",
   file_size: fileSize,
   upload_duration: duration
 }
-```
+\`\`\`
 
 ### Performance Metrics
 - Upload completion rates by method
@@ -234,10 +234,10 @@ metadata: {
 - Verify network stability
 
 ### Debug Mode
-```javascript
+\`\`\`javascript
 // Enable detailed logging
 localStorage.setItem('debug_uploads', 'true')
-```
+\`\`\`
 
 ## Summary
 
@@ -248,4 +248,4 @@ The optimized upload system provides:
 - **Scalable architecture** for growth
 - **No wasted uploads** - only uploads when users commit to training
 
-This dual-strategy approach ensures both **performance** and **reliability** while maintaining backward compatibility and reducing unnecessary uploads by 60-80%. 
+This dual-strategy approach ensures both **performance** and **reliability** while maintaining backward compatibility and reducing unnecessary uploads by 60-80%.

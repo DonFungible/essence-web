@@ -77,4 +77,4 @@ async function applyMigration() {
 }
 
 // Run the migration
-applyMigration() 
+applyMigration()

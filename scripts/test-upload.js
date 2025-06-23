@@ -88,4 +88,4 @@ async function testUploadUrl() {
 }
 
 // Run the test
-testUploadUrl() 
+testUploadUrl()

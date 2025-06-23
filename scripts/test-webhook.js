@@ -123,4 +123,4 @@ if (!validTestCases.includes(testCase)) {
 }
 
 console.log(`🚀 Starting webhook test...`);
-testWebhook(testCase); 
+testWebhook(testCase);

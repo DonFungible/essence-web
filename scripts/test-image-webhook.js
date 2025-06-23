@@ -151,4 +151,4 @@ if (require.main === module) {
   runTests().catch(console.error)
 }
 
-module.exports = { testWebhook, webhookPayloads } 
+module.exports = { testWebhook, webhookPayloads }
