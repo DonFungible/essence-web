@@ -13,36 +13,6 @@ interface RecentGenerationsGridProps {
   modelName: string
 }
 
-const getStatusBadgeVariant = (status: GenerationRecord["status"]) => {
-  switch (status) {
-    case "succeeded":
-      return "success"
-    case "failed":
-      return "destructive"
-    case "processing":
-      return "secondary"
-    case "pending":
-      return "outline"
-    default:
-      return "default"
-  }
-}
-
-const getStatusIcon = (status: GenerationRecord["status"]) => {
-  switch (status) {
-    case "succeeded":
-      return <CheckCircle className="w-3 h-3" />
-    case "failed":
-      return <XCircle className="w-3 h-3" />
-    case "processing":
-      return <Loader2 className="w-3 h-3 animate-spin" />
-    case "pending":
-      return <Clock className="w-3 h-3" />
-    default:
-      return <Clock className="w-3 h-3" />
-  }
-}
-
 export default function RecentGenerationsGrid({ modelId, modelName }: RecentGenerationsGridProps) {
   const { data: generations, isLoading, isError, error } = useRecentGenerations(modelId)
 
@@ -91,10 +61,8 @@ export default function RecentGenerationsGrid({ modelId, modelName }: RecentGene
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-slate-700 mb-6">
-        Recent Generations by {modelName}
-      </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <h2 className="text-2xl font-semibold text-slate-700 mb-6">Recent Generations</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
         {generations.map((gen) => (
           <Link key={gen.id} href={`/image/${gen.id}`} passHref>
             <Card className="overflow-hidden shadow-sm hover:shadow-xl transition-shadow duration-300 group h-full flex flex-col">
@@ -122,17 +90,17 @@ export default function RecentGenerationsGrid({ modelId, modelName }: RecentGene
                 )}
               </div>
               <CardContent className="p-4 flex-grow flex flex-col justify-between">
-                <div>
+                <div className="flex justify-between">
                   <p
                     className="text-sm text-slate-700 font-medium truncate group-hover:whitespace-normal group-hover:overflow-visible"
                     title={gen.prompt}
                   >
                     {gen.prompt}
                   </p>
+                  <p className="text-xs text-slate-500">
+                    {new Date(gen.created_at).toLocaleDateString()}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-500 mt-2">
-                  {new Date(gen.created_at).toLocaleDateString()}
-                </p>
               </CardContent>
             </Card>
           </Link>

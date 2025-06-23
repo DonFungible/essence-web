@@ -1,11 +1,12 @@
+"use client"
 import Image from "next/image"
 import Link from "next/link"
-import { getImageById } from "@/components/image-grid" // Assuming image-grid exports these
 import { ArrowLeft, User, Info, Cpu, Tag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Sidebar from "@/components/sidebar" // Re-using sidebar for consistent layout
 import TopBar from "@/components/top-bar" // Re-using topbar
+import { useGalleryImage } from "@/hooks/use-gallery-images"
 
 interface ImageDetailPageProps {
   params: {
@@ -15,23 +16,41 @@ interface ImageDetailPageProps {
 
 export default function ImageDetailPage({ params }: ImageDetailPageProps) {
   const imageId = Number.parseInt(params.id, 10)
-  const image = getImageById(imageId)
+  const { data: image, isLoading, error } = useGalleryImage(imageId)
 
-  if (!image) {
+  if (isLoading) {
     return (
-      <div className="flex h-screen">
+      <div className="flex h-screen bg-slate-100">
         <Sidebar />
-        <div className="flex-1 flex flex-col items-center justify-center bg-slate-100">
+        <div className="flex-1 flex flex-col overflow-hidden">
           <TopBar />
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-            <h1 className="text-2xl font-semibold text-slate-700 mb-4">Image not found</h1>
-            <p className="text-slate-500 mb-6">Sorry, we couldn't find the image you're looking for.</p>
+          <main className="flex-1 flex flex-col items-center justify-center text-center p-6">
+            <div className="text-slate-500">Loading image...</div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !image) {
+    return (
+      <div className="flex h-screen bg-slate-100">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <TopBar />
+          <main className="flex-1 flex flex-col items-center justify-center text-center p-6">
+            <h1 className="text-2xl font-semibold text-slate-700 mb-4">
+              {error ? "Error loading image" : "Image not found"}
+            </h1>
+            <p className="text-slate-500 mb-6">
+              {error ? error.message : "Sorry, we couldn't find the image you're looking for."}
+            </p>
             <Button asChild>
               <Link href="/">
                 <ArrowLeft className="mr-2 h-4 w-4" /> Go back to Explore
               </Link>
             </Button>
-          </div>
+          </main>
         </div>
       </div>
     )
@@ -105,7 +124,9 @@ export default function ImageDetailPage({ params }: ImageDetailPageProps) {
                 </div>
 
                 <div className="p-6 bg-slate-50 rounded-xl shadow-lg space-y-3">
-                  <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Actions</h2>
+                  <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                    Actions
+                  </h2>
                   <Button className="w-full">Download Image</Button>
                   <Button variant="outline" className="w-full">
                     Add to Collection

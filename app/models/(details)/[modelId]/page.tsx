@@ -6,6 +6,7 @@ import ModelClientContent from "./model-client-content"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
+import EditableDescription from "@/components/editable-description"
 import { getModelById, type ModelType } from "@/lib/models-data"
 
 interface Props {
@@ -32,6 +33,9 @@ async function findModelById(id: string): Promise<ModelType | null> {
 export default async function ModelPage({ params }: Props) {
   const { modelId } = await params
   const model = await findModelById(modelId)
+
+  // Determine if this is a static model (can't be edited) or database model (can be edited)
+  const isStaticModel = !!getModelById(modelId)
 
   if (!model) {
     return (
@@ -67,7 +71,7 @@ export default async function ModelPage({ params }: Props) {
         <TopBar />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl">
           <div className="max-w-7xl mx-auto">
-            <header className="space-y-2 mb-8 relative">
+            <header className="space-y-4 mb-8 relative">
               <div className="flex items-center">
                 <Button
                   variant="ghost"
@@ -82,13 +86,21 @@ export default async function ModelPage({ params }: Props) {
                 <Cpu className="mr-3 h-8 w-8 text-slate-600" />
                 <h1 className="text-3xl font-bold tracking-tight">{model.name}</h1>
               </div>
-              {model.description && <p className="text-slate-600 max-w-2xl">{model.description}</p>}
+
+              {/* Editable Description */}
+              <div className="max-w-2xl">
+                <EditableDescription
+                  modelId={modelId}
+                  description={model.description || ""}
+                  placeholder="Add a description for this model..."
+                  isStaticModel={isStaticModel}
+                />
+              </div>
             </header>
 
             {/* Style Reference Section */}
             <section className="mb-10">
               <div className="flex items-center mb-4">
-                <Palette className="mr-2 h-6 w-6 text-slate-500" />
                 <h2 className="text-2xl font-semibold text-slate-700">Style Reference</h2>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
