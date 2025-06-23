@@ -30,10 +30,10 @@ const Sidebar = () => {
 
   return (
     <div className="w-64 bg-white p-4 space-y-6 border-r border-slate-200 flex flex-col">
-      <div className="flex items-center space-x-2">
+      <Link href="/" className="flex items-center space-x-2">
         <Paintbrush className="w-8 h-8 text-slate-800" />
         <h1 className="text-xl font-bold text-slate-800">essence</h1>
-      </div>
+      </Link>
 
       <nav className="flex-grow space-y-1 text-[16px]">
         {navItems.map((item) => {
@@ -49,7 +49,8 @@ const Sidebar = () => {
                     active
                       ? "bg-slate-100 text-slate-900 font-medium hover:bg-slate-100"
                       : "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
-                    item.disabled && "text-slate-400 cursor-not-allowed hover:bg-transparent hover:text-slate-400",
+                    item.disabled &&
+                      "text-slate-400 cursor-not-allowed hover:bg-transparent hover:text-slate-400"
                   )}
                   disabled={item.disabled}
                   aria-current={active ? "page" : undefined}
@@ -58,7 +59,7 @@ const Sidebar = () => {
                     className={cn(
                       "w-5 h-5 mr-2",
                       active ? "text-slate-900" : "text-slate-600",
-                      item.disabled && "text-slate-400",
+                      item.disabled && "text-slate-400"
                     )}
                   />
                   <span>{item.label}</span>
@@ -75,7 +76,8 @@ const Sidebar = () => {
                 active
                   ? "bg-slate-100 text-slate-900 font-medium"
                   : "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
-                item.disabled && "text-slate-400 cursor-not-allowed hover:bg-transparent hover:text-slate-400",
+                item.disabled &&
+                  "text-slate-400 cursor-not-allowed hover:bg-transparent hover:text-slate-400"
               )}
               aria-current={active ? "page" : undefined}
               onClick={(e) => item.disabled && e.preventDefault()}
@@ -84,7 +86,7 @@ const Sidebar = () => {
                 className={cn(
                   "w-5 h-5",
                   active ? "text-slate-900" : "text-slate-600",
-                  item.disabled && "text-slate-400",
+                  item.disabled && "text-slate-400"
                 )}
               />
               <span>{item.label}</span>
@@ -93,7 +95,9 @@ const Sidebar = () => {
         })}
 
         <div className="pt-4">
-          <h2 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">My Creations</h2>
+          <h2 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            My Creations
+          </h2>
           {creationItems.map((item) => {
             const active = !item.disabled && isActive(item.href)
             return (
@@ -105,7 +109,8 @@ const Sidebar = () => {
                   active
                     ? "bg-slate-100 text-slate-900 font-medium"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-                  item.disabled && "text-slate-400 cursor-not-allowed hover:bg-transparent hover:text-slate-400",
+                  item.disabled &&
+                    "text-slate-400 cursor-not-allowed hover:bg-transparent hover:text-slate-400"
                 )}
                 aria-current={active ? "page" : undefined}
                 onClick={(e) => item.disabled && e.preventDefault()}
@@ -114,7 +119,7 @@ const Sidebar = () => {
                   className={cn(
                     "w-5 h-5",
                     active ? "text-slate-900" : "text-slate-500",
-                    item.disabled && "text-slate-400",
+                    item.disabled && "text-slate-400"
                   )}
                 />
                 <span>{item.label}</span>

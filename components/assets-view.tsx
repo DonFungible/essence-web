@@ -3,7 +3,14 @@
 import { useState, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Filter, ImageIcon as ImageIconLucide, Shapes, PaletteIcon, TagIcon } from "lucide-react" // Renamed ImageIcon to avoid conflict
+import {
+  Search,
+  Filter,
+  ImageIcon as ImageIconLucide,
+  Shapes,
+  PaletteIcon,
+  TagIcon,
+} from "lucide-react" // Renamed ImageIcon to avoid conflict
 import AssetGrid from "./asset-grid" // Import AssetGrid
 import type { Asset } from "@/lib/assets-data" // Use Asset type from lib
 
@@ -33,7 +40,8 @@ export default function AssetsView({ initialAssets }: { initialAssets: Asset[] }
       const term = searchTerm.toLowerCase()
       result = result.filter(
         (asset) =>
-          asset.name.toLowerCase().includes(term) || asset.tags?.some((tag) => tag.toLowerCase().includes(term)),
+          asset.name.toLowerCase().includes(term) ||
+          asset.tags?.some((tag) => tag.toLowerCase().includes(term))
       )
     }
 
@@ -52,22 +60,22 @@ export default function AssetsView({ initialAssets }: { initialAssets: Asset[] }
   return (
     <div className="space-y-6">
       {/* Filter Bar Section */}
-      <div className="sticky top-[var(--top-bar-height,64px)] bg-slate-100 py-4 z-10 shadow-sm rounded-lg">
-        <div className="container mx-auto px-4">
+      <div className="sticky py-4">
+        <div className="container mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-4">
-            <div className="relative w-full md:max-w-sm">
+            <div className="relative w-full ">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-5 w-5 text-slate-400" />
               </div>
               <Input
                 type="search"
                 placeholder="Search assets by name or tag..."
-                className="pl-10 w-full bg-white"
+                className="pl-10 w-full bg-slate-50 border-slate-200 focus:bg-white"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto">
+            <div className="flex items-center gap-2 pb-2 md:pb-0 justify-end">
               {assetFilterCategories.map((filter) => (
                 <Button
                   key={filter.name}
@@ -76,11 +84,11 @@ export default function AssetsView({ initialAssets }: { initialAssets: Asset[] }
                   className={`flex-shrink-0 ${
                     activeFilter === filter.name
                       ? "bg-slate-700 hover:bg-slate-800 text-white"
-                      : "bg-white hover:bg-slate-50 text-slate-700"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700"
                   }`}
                   onClick={() => handleFilterClick(filter.name)}
                 >
-                  <filter.icon className="mr-2 h-4 w-4" />
+                  <filter.icon className="h-4 w-4" />
                   {filter.name}
                 </Button>
               ))}
