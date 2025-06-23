@@ -10,6 +10,7 @@
     "migrate:training-inputs": "node scripts/apply-training-inputs-migration.js",
     "migrate:unique-job-id": "node scripts/apply-migration.js",
     "start": "next start",
+    "test:style-images": "node scripts/test-style-images.js",
     "test:upload": "node scripts/test-upload.js",
     "test:webhook": "node scripts/test-webhook.js",
     "test:webhook:failed": "node scripts/test-webhook.js failed",

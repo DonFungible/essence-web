@@ -8,6 +8,7 @@ import TopBar from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
 import EditableDescription from "@/components/editable-description"
 import { getModelById, type ModelType } from "@/lib/models-data"
+import { getStyleReferenceImages } from "@/lib/style-reference-images"
 
 interface Props {
   params: {
@@ -56,13 +57,8 @@ export default async function ModelPage({ params }: Props) {
     )
   }
 
-  // Hardcoded style reference images - replace with model-specific images if available
-  const styleReferenceImages = [
-    { src: "/abstract-product.png", alt: "Abstract product style example" },
-    { src: "/anime-fantasy-landscape.png", alt: "Anime fantasy landscape style example" },
-    { src: "/vintage-white-car.png", alt: "Vintage white car style example" },
-    { src: "/minimalist-animation.png", alt: "Minimalist animation style example" },
-  ]
+  // Fetch style reference images from Supabase storage bucket
+  const styleReferenceImages = await getStyleReferenceImages(model.name)
 
   return (
     <div className="flex h-screen bg-slate-100">
@@ -102,6 +98,10 @@ export default async function ModelPage({ params }: Props) {
             <section className="mb-10">
               <div className="flex items-center mb-4">
                 <h2 className="text-2xl font-semibold text-slate-700">Style Reference</h2>
+                <span className="ml-2 text-sm text-slate-500">
+                  ({styleReferenceImages.length} image{styleReferenceImages.length !== 1 ? "s" : ""}
+                  )
+                </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {styleReferenceImages.map((img, index) => (
@@ -119,6 +119,14 @@ export default async function ModelPage({ params }: Props) {
                   </div>
                 ))}
               </div>
+
+              {/* Show message when using default images */}
+              {styleReferenceImages.length === 4 && styleReferenceImages[0].src.startsWith("/") && (
+                <p className="text-xs text-slate-400 mt-2 italic">
+                  No custom style images found. Upload images to assets/{model.name} bucket to show
+                  model-specific examples.
+                </p>
+              )}
             </section>
 
             <ModelClientContent model={model} />

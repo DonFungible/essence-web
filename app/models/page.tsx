@@ -4,10 +4,17 @@ import TopBar from "@/components/top-bar"
 import type { ModelType } from "@/lib/models-data" // Removed exampleModelsData
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Plus, Search, Filter, SortAsc, ImageOff } from "lucide-react"
 import ModelHoverCard from "@/components/model-hover-card"
 import { getTrainedModelsFromDatabase } from "@/lib/server-models" // Direct import
+import { getFirstStyleReferenceImage } from "@/lib/style-reference-images"
 
 export default async function ModelsPage() {
   let trainedModels: ModelType[] = []
@@ -19,24 +26,44 @@ export default async function ModelsPage() {
     trainedModels = []
   }
 
-  const mapModelToCardProps = (model: ModelType) => ({
-    name: model.name,
-    // Use previewImageUrl if available, then exampleImages[0] (if any), then placeholder
-    // Since exampleImages is now likely empty for DB models, this simplifies
-    imageUrl:
-      model.previewImageUrl ||
-      (model.exampleImages && model.exampleImages.length > 0 ? model.exampleImages[0] : undefined) || // Keep this for future if exampleImages get populated
-      `/placeholder.svg?width=300&height=400&query=${encodeURIComponent(model.name)}`,
-    // Mock data for followers/posts, replace with real data if available
-    // For now, let's use something generic or from model.styles / model.metrics
-    followers: model.styles.length || 0, // Example: number of styles/tags
-    posts: model.metrics.find((m) => m.name === "Generations")?.value || 0, // Example: number of generations if tracked
-    isVerified: model.status === "succeeded", // Example: "succeeded" models are "verified"
-    href: `/models/${model.id}`, // model.id is now replicate_job_id or dbId
-    description: model.description || "",
-  })
+  // Function to get image URL with style reference fallback
+  const getModelImageUrl = async (model: ModelType): Promise<string> => {
+    // First try preview image
+    if (model.previewImageUrl) {
+      return model.previewImageUrl
+    }
 
-  const displayModels = trainedModels.map(mapModelToCardProps)
+    // Then try example images
+    if (model.exampleImages && model.exampleImages.length > 0) {
+      return model.exampleImages[0]
+    }
+
+    // Try to get first style reference image from storage
+    try {
+      const styleImage = await getFirstStyleReferenceImage(model.name)
+      if (styleImage) {
+        return styleImage
+      }
+    } catch (error) {
+      console.error(`Error getting style reference image for ${model.name}:`, error)
+    }
+
+    // Fall back to placeholder
+    return `/placeholder.svg?width=300&height=400&query=${encodeURIComponent(model.name)}`
+  }
+
+  // Map models to card props with async image resolution
+  const displayModels = await Promise.all(
+    trainedModels.map(async (model) => ({
+      name: model.name,
+      imageUrl: await getModelImageUrl(model),
+      followers: model.styles.length || 0, // Example: number of styles/tags
+      posts: model.metrics.find((m) => m.name === "Generations")?.value || 0, // Example: number of generations if tracked
+      isVerified: model.status === "succeeded", // Example: "succeeded" models are "verified"
+      href: `/models/${model.id}`, // model.id is now replicate_job_id or dbId
+      description: model.description || "",
+    }))
+  )
 
   return (
     <div className="flex h-screen bg-slate-100">
@@ -48,7 +75,9 @@ export default async function ModelsPage() {
             <div className="flex justify-between items-start mb-8">
               <div>
                 <h1 className="text-3xl font-bold text-slate-800">Your Style Models</h1>
-                <p className="text-slate-500 mt-1">Browse and manage your custom trained style models.</p>
+                <p className="text-slate-500 mt-1">
+                  Browse and manage your custom trained style models.
+                </p>
               </div>
               <Button asChild>
                 <Link href="/train">
