@@ -19,7 +19,13 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea" // Added Textarea
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
@@ -55,8 +61,16 @@ export default function TrainModelPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  const { uploading: datasetUploading, progress: datasetProgress, uploadFile: uploadDatasetFile } = useFileUpload()
-  const { uploading: previewUploading, progress: previewProgress, uploadFile: uploadPreviewImageFile } = useFileUpload()
+  const {
+    uploading: datasetUploading,
+    progress: datasetProgress,
+    uploadFile: uploadDatasetFile,
+  } = useFileUpload()
+  const {
+    uploading: previewUploading,
+    progress: previewProgress,
+    uploadFile: uploadPreviewImageFile,
+  } = useFileUpload()
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -172,12 +186,16 @@ export default function TrainModelPage() {
   }
 
   const currentUploading = datasetUploading || previewUploading
-  const currentProgress = datasetUploading ? datasetProgress : previewUploading ? previewProgress : 0
+  const currentProgress = datasetUploading
+    ? datasetProgress
+    : previewUploading
+    ? previewProgress
+    : 0
   const uploadMessage = datasetUploading
     ? `Uploading Dataset... ${datasetProgress}%`
     : previewUploading
-      ? `Uploading Preview... ${previewProgress}%`
-      : "Starting Training..."
+    ? `Uploading Preview... ${previewProgress}%`
+    : "Starting Training..."
 
   return (
     <div className="flex h-screen bg-slate-100">
@@ -191,7 +209,9 @@ export default function TrainModelPage() {
               <Card className="">
                 <CardHeader>
                   <CardTitle>Train a New Style Model</CardTitle>
-                  <CardDescription>Start by uploading your dataset as a .zip file (up to 100MB).</CardDescription>
+                  <CardDescription>
+                    Start by uploading your dataset as a .zip file (up to 100MB).
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Label
@@ -203,9 +223,17 @@ export default function TrainModelPage() {
                       <p className="mb-2 text-sm text-slate-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-slate-500">ZIP file (up to 100MB, 10 images recommended)</p>
+                      <p className="text-xs text-slate-500">
+                        ZIP file (up to 100MB, 10 images recommended)
+                      </p>
                     </div>
-                    <Input id="file-upload" type="file" className="hidden" accept=".zip" onChange={handleFileChange} />
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      className="hidden"
+                      accept=".zip"
+                      onChange={handleFileChange}
+                    />
                   </Label>
                   {formError &&
                     !file && ( // Show error only if no file selected yet
@@ -235,13 +263,14 @@ export default function TrainModelPage() {
                 )}
 
                 {/* Preview Image Upload Section */}
-                <Card>
+                {/* <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center">
                       <ImageIcon className="mr-2" /> Optional: Preview Image
                     </CardTitle>
                     <CardDescription>
-                      Upload an image (JPG, PNG, WEBP, GIF, max 5MB) to represent your model on its card.
+                      Upload an image (JPG, PNG, WEBP, GIF, max 5MB) to represent your model on its
+                      card.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -286,7 +315,7 @@ export default function TrainModelPage() {
                       </Label>
                     )}
                   </CardContent>
-                </Card>
+                </Card> */}
 
                 <Card>
                   <CardHeader>
@@ -304,7 +333,9 @@ export default function TrainModelPage() {
                         placeholder="e.g., MyUniqueStyle, ArtByHRGIGER"
                         required
                       />
-                      <p className="text-xs text-slate-500 mt-1">A unique word to activate your model. No spaces.</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        A unique word to activate your model. No spaces.
+                      </p>
                     </div>
                     <div>
                       <Label htmlFor="description">Optional: Model Description</Label>
@@ -312,7 +343,7 @@ export default function TrainModelPage() {
                         id="description"
                         name="description"
                         placeholder="Describe your model's style, subject, or best use cases (max 200 characters)."
-                        maxLength={200}
+                        maxLength={2000}
                         className="h-24"
                       />
                     </div>
@@ -349,7 +380,11 @@ export default function TrainModelPage() {
                   onClick={() => setIsModalOpen(true)}
                   disabled={isLoading || !file}
                 >
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="mr-2 h-4 w-4" />
+                  )}
                   {isLoading ? "Processing..." : "Review & Start Training"}
                 </Button>
 
@@ -361,20 +396,27 @@ export default function TrainModelPage() {
                     <div className="py-4 text-sm text-slate-600 space-y-3">
                       {/* Terms unchanged */}
                       <ul className="list-disc list-inside space-y-2">
-                        <li>You confirm you have the rights to use the uploaded images for AI model training.</li>
                         <li>
-                          Your images will be used solely for the purpose of training your private model and will not be
-                          shared.
+                          You confirm you have the rights to use the uploaded images for AI model
+                          training.
                         </li>
                         <li>
-                          As part of our commitment to creator rights, a hash of your images will be registered as
-                          Intellectual Property on the <strong>Story blockchain</strong>. This creates a verifiable,
-                          on-chain link between you and your dataset.
+                          Your images will be used solely for the purpose of training your private
+                          model and will not be shared.
+                        </li>
+                        <li>
+                          As part of our commitment to creator rights, a hash of your images will be
+                          registered as Intellectual Property on the{" "}
+                          <strong>Story blockchain</strong>. This creates a verifiable, on-chain
+                          link between you and your dataset.
                         </li>
                       </ul>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Checkbox id="terms" onCheckedChange={(checked) => setIsConsentGiven(Boolean(checked))} />
+                      <Checkbox
+                        id="terms"
+                        onCheckedChange={(checked) => setIsConsentGiven(Boolean(checked))}
+                      />
                       <label htmlFor="terms" className="text-sm font-medium">
                         I have read and agree to the terms and conditions.
                       </label>
@@ -389,7 +431,11 @@ export default function TrainModelPage() {
                         Cancel
                       </AlertDialogCancel>
                       <AlertDialogAction asChild>
-                        <Button type="submit" form="trainModelForm" disabled={!isConsentGiven || isLoading || !file}>
+                        <Button
+                          type="submit"
+                          form="trainModelForm"
+                          disabled={!isConsentGiven || isLoading || !file}
+                        >
                           {isLoading ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

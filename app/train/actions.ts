@@ -26,7 +26,9 @@ const pool = new Pool({ connectionString: DATABASE_URL })
 const trainingInputSchema = z.object({
   input_images: z.string().url(),
   trigger_word: z.string().min(1),
-  captioning: z.enum(["captioning-disabled", "automatic", "captioning-enabled"]).default("automatic"),
+  captioning: z
+    .enum(["captioning-disabled", "automatic", "captioning-enabled"])
+    .default("automatic"),
   training_steps: z.number().min(1).max(1000).default(300),
   mode: z.literal("style").default("style"),
   lora_rank: z.enum(["16", "32"]).default("16").transform(Number),
@@ -35,7 +37,7 @@ const trainingInputSchema = z.object({
 
 async function submitToReplicate(
   replicateApiInput: z.infer<typeof trainingInputSchema>,
-  webhookUrl: string,
+  webhookUrl: string
   // metadata is not directly passed to Replicate's prediction.create input
   // It's used for our own database logging
 ) {
@@ -97,7 +99,10 @@ export async function startTrainingJobOptimized(data: {
 
     const parsedReplicateInput = trainingInputSchema.safeParse(replicateApiInputData)
     if (!parsedReplicateInput.success) {
-      console.error("[TRAIN_ACTION] Replicate input validation failed:", parsedReplicateInput.error.flatten())
+      console.error(
+        "[TRAIN_ACTION] Replicate input validation failed:",
+        parsedReplicateInput.error.flatten()
+      )
       return { success: false, error: "Invalid input for Replicate API." }
     }
 
@@ -118,49 +123,31 @@ export async function startTrainingJobOptimized(data: {
     const replicateResult = await submitToReplicate(parsedReplicateInput.data, webhookUrl)
 
     // Immediately log/update our database
-    const dbClient = await pool.connect()
     try {
-      const query = `
-        INSERT INTO training_jobs (
-          replicate_job_id, status, trigger_word, input_images_url, 
-          training_steps, captioning, preview_image_url, description,
-          original_dataset_filename, supabase_storage_path
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        ON CONFLICT (replicate_job_id) DO UPDATE SET
-          status = EXCLUDED.status,
-          trigger_word = EXCLUDED.trigger_word,
-          input_images_url = EXCLUDED.input_images_url,
-          training_steps = EXCLUDED.training_steps,
-          captioning = EXCLUDED.captioning,
-          preview_image_url = EXCLUDED.preview_image_url,
-          description = EXCLUDED.description,
-          original_dataset_filename = EXCLUDED.original_dataset_filename,
-          supabase_storage_path = EXCLUDED.supabase_storage_path,
-          updated_at = CURRENT_TIMESTAMP
-        RETURNING id;
-      `
-      const values = [
-        replicateResult.replicateJobId,
-        replicateResult.status,
-        triggerWord,
-        publicUrl,
-        Number.parseInt(trainingSteps),
-        captioning,
-        previewImageUrl, // Can be null
-        description, // Can be null
-        originalFileName,
-        storagePath,
-      ]
-      const dbRes = await dbClient.query(query, values)
-      console.log(
-        `[TRAIN_ACTION] Training job ${dbRes.rows[0].id} (Replicate ID: ${replicateResult.replicateJobId}) logged/updated in DB.`,
-      )
-    } finally {
-      dbClient.release()
+      const { data: dbRes, error } = await supabaseAdmin
+        .from("training_jobs")
+        .upsert({
+          replicate_job_id: replicateResult.replicateJobId,
+          status: replicateResult.status,
+          trigger_word: triggerWord,
+          input_images_url: publicUrl,
+          training_steps: Number.parseInt(trainingSteps),
+          captioning: captioning,
+          preview_image_url: previewImageUrl,
+          description: description,
+          original_dataset_filename: originalFileName,
+          supabase_storage_path: storagePath,
+        })
+        .select()
+        .single()
+    } catch (error) {
+      console.error("[TRAIN_ACTION] Error logging to database:", error)
+      return { success: false, error: "Failed to log training job to database." }
     }
 
-    console.log(`[TRAIN_ACTION] Successfully submitted to Replicate. Job ID: ${replicateResult.replicateJobId}`)
+    console.log(
+      `[TRAIN_ACTION] Successfully submitted to Replicate. Job ID: ${replicateResult.replicateJobId}`
+    )
     return {
       success: true,
       jobId: replicateResult.replicateJobId,
