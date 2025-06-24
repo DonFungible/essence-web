@@ -3,7 +3,6 @@ import Replicate from "replicate"
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 import { headers } from "next/headers"
-import { Pool } from "pg" // For direct DB interaction
 
 /** Throws if an env var is missing or empty. */
 function requireEnv(name: string): string {
@@ -20,8 +19,6 @@ const DATABASE_URL = requireEnv("POSTGRES_URL") // For direct DB connection
 
 const replicate = new Replicate({ auth: REPLICATE_API_TOKEN })
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) // For storage
-
-const pool = new Pool({ connectionString: DATABASE_URL })
 
 const trainingInputSchema = z.object({
   input_images: z.string().url(),
@@ -111,7 +108,7 @@ export async function startTrainingJobOptimized(data: {
     if (process.env.NODE_ENV === "development" && tunnelUrl) {
       webhookUrl = `${tunnelUrl}/api/replicate-webhook`
     } else {
-      const headersList = headers() // Correct usage of headers
+      const headersList = await headers() // Correct usage of headers
       const host = headersList.get("host")
       if (!host) throw new Error("Could not determine host for webhook URL.")
       const protocol = host.startsWith("localhost") ? "http" : "https"
