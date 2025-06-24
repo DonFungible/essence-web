@@ -13,17 +13,27 @@ import {
 } from "@/components/ui/select"
 import { Plus, Search, Filter, SortAsc, ImageOff } from "lucide-react"
 import ModelHoverCard from "@/components/model-hover-card"
-import { getTrainedModelsFromDatabase } from "@/lib/server-models" // Direct import
+import { getTrainedModelsFromDatabase, getTrainingModelsFromDatabase } from "@/lib/server-models" // Direct import
 import { getFirstStyleReferenceImage } from "@/lib/style-reference-images"
+import TrainingModelCard from "@/components/training-model-card"
 
 export default async function ModelsPage() {
   let trainedModels: ModelType[] = []
+  let trainingModels: ModelType[] = []
+
   try {
-    trainedModels = await getTrainedModelsFromDatabase()
+    // Fetch trained, training, and pending models in parallel
+    const [trained, training] = await Promise.all([
+      getTrainedModelsFromDatabase(),
+      getTrainingModelsFromDatabase(),
+    ])
+    trainedModels = trained
+    trainingModels = training
   } catch (error) {
-    console.error("Error loading trained models:", error)
-    // Potentially set an error state to show in UI
+    console.error("Error loading models:", error)
+    // Set error state to show in UI
     trainedModels = []
+    trainingModels = []
   }
 
   // Function to get image URL with style reference fallback
@@ -128,6 +138,7 @@ export default async function ModelsPage() {
                 </div>
               </div>
             </div>
+            {/* Completed Models Section */}
 
             {displayModels.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
@@ -148,6 +159,37 @@ export default async function ModelsPage() {
                     Train New Model
                   </Link>
                 </Button>
+              </div>
+            )}
+
+            {/* Training Models Section */}
+            {trainingModels.length > 0 && (
+              <div className="mt-10">
+                <div className="flex items-center mb-6">
+                  <h2 className="text-2xl font-semibold text-slate-800">Currently Training</h2>
+                  <span className="ml-2 text-sm text-slate-500">
+                    ({trainingModels.length} model{trainingModels.length !== 1 ? "s" : ""})
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                  {await Promise.all(
+                    trainingModels.map(async (model) => (
+                      <TrainingModelCard
+                        key={model.id}
+                        name={model.name}
+                        description={model.description}
+                        imageUrl={await getModelImageUrl(model)}
+                        status={model.status || "unknown"}
+                        trainingSteps={
+                          model.metrics.find((m) => m.name === "Training Steps")?.value
+                        }
+                        captioning={model.styles.find((s) => s.includes("captioning")) || undefined}
+                        createdAt={model.createdAt || new Date().toISOString()}
+                        href={`/models/${model.id}`}
+                      />
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -79,9 +79,8 @@ export default function TrainModelPage() {
         setFormError("Please upload a valid .zip dataset file.")
         return
       }
-      if (selectedFile.size > 100 * 1024 * 1024) {
-        // 100MB limit
-        setFormError("Dataset file size must be less than 100MB.")
+      if (selectedFile.size > 2000 * 1024 * 1024) {
+        setFormError("Dataset file size must be less than 2GB.")
         return
       }
       setFile(selectedFile)
@@ -210,7 +209,7 @@ export default function TrainModelPage() {
                 <CardHeader>
                   <CardTitle>Train a New Style Model</CardTitle>
                   <CardDescription>
-                    Start by uploading your dataset as a .zip file (up to 100MB).
+                    Start by uploading your dataset as a .zip file (up to 2GB).
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -224,7 +223,7 @@ export default function TrainModelPage() {
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
                       <p className="text-xs text-slate-500">
-                        ZIP file (up to 100MB, 10 images recommended)
+                        ZIP file (up to 2GB, minimum 10 images)
                       </p>
                     </div>
                     <Input

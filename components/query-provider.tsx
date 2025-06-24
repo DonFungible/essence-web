@@ -14,7 +14,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
             gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
             retry: (failureCount, error) => {
               // Don't retry on 4xx errors
-              if (error && typeof error === 'object' && 'status' in error) {
+              if (error && typeof error === "object" && "status" in error) {
                 const status = error.status as number
                 if (status >= 400 && status < 500) return false
               }
@@ -31,7 +31,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* <ReactQueryDevtools initialIsOpen={false} /> */}
     </QueryClientProvider>
   )
 }

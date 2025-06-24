@@ -156,6 +156,16 @@ const images = [
     description: "AI-generated artwork from the gallery collection.",
     model: "Essence 3.0",
   },
+  {
+    id: 16,
+    title: "Gallery Image 16",
+    src: "/gallery/mj16.png",
+    alt: "Gallery artwork 16",
+    aspect: "landscape",
+    author: "Name",
+    description: "AI-generated artwork from the gallery collection.",
+    model: "Essence 3.0",
+  },
 ]
 
 // Exporting images array and type for use in the detail page

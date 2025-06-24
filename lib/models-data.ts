@@ -33,6 +33,7 @@ export type ModelType = {
   dbId: string // Keep original database ID for linking if needed
   status?: string | null
   outputModelUrl?: string | null // Direct URL to the replicate output model zip
+  createdAt?: string // ISO timestamp string
 }
 
 /* ------------------------------------------------------------------
@@ -58,9 +59,7 @@ export function transformDbModelToUIModel(dbModel: DatabaseModel): ModelType {
     dbId: dbModel.id, // Store the original database ID
     name: dbModel.trigger_word || `Model ${dbModel.id.substring(0, 6)}`,
     version: `v1.0 (${dbModel.status || "N/A"})`,
-    description:
-      dbModel.description ||
-      `Custom trained model. Trigger word: ${dbModel.trigger_word || "not set"}. Status: ${dbModel.status || "N/A"}.`,
+    description: dbModel.description || "",
     previewImageUrl: dbModel.preview_image_url || undefined,
     trainingData: {
       size: "Custom dataset", // Could be enhanced if image count is stored
@@ -74,7 +73,7 @@ export function transformDbModelToUIModel(dbModel: DatabaseModel): ModelType {
     ].filter(Boolean) as string[],
     metrics: [
       { name: "Status", value: dbModel.status || "Unknown" },
-      { name: "Training Steps", value: dbModel.training_steps || "N/A" },
+      { name: "Training Steps", value: dbModel.training_steps || "" },
       // Add more relevant metrics if available
     ],
     // exampleImages are tricky if output_model_url is a zip.
@@ -83,5 +82,6 @@ export function transformDbModelToUIModel(dbModel: DatabaseModel): ModelType {
     exampleImages: [],
     status: dbModel.status,
     outputModelUrl: dbModel.output_model_url,
+    createdAt: dbModel.created_at,
   }
 }

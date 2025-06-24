@@ -12,13 +12,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Validate file size (100MB limit)
-    if (fileSize > 100 * 1024 * 1024) {
-      return NextResponse.json({ error: "File size exceeds 100MB limit" }, { status: 400 })
+    // Validate file size (2000MB limit)
+    if (fileSize > 2000 * 1024 * 1024) {
+      return NextResponse.json({ error: "File size exceeds 200MB limit" }, { status: 400 })
     }
 
     // Validate file type
-    if (!fileType.includes('zip') && !fileType.includes('application/zip')) {
+    if (!fileType.includes("zip") && !fileType.includes("application/zip")) {
       return NextResponse.json({ error: "Only ZIP files are allowed" }, { status: 400 })
     }
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
-        auth: { autoRefreshToken: false, persistSession: false }
+        auth: { autoRefreshToken: false, persistSession: false },
       }
     )
 
@@ -54,9 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get the public URL for later use
-    const { data: urlData } = supabase.storage
-      .from("models")
-      .getPublicUrl(storagePath)
+    const { data: urlData } = supabase.storage.from("models").getPublicUrl(storagePath)
 
     return NextResponse.json({
       uploadUrl: data.signedUrl,
@@ -64,7 +62,6 @@ export async function POST(req: NextRequest) {
       storagePath: storagePath,
       fileName: newFileName,
     })
-
   } catch (error) {
     console.error("Upload URL generation error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
