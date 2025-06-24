@@ -14,7 +14,7 @@ export async function getTrainedModelsFromDatabase(): Promise<ModelType[]> {
   try {
     const supabase = await createClient()
 
-    // Fetch successful training jobs that have output models
+    // Fetch successful training jobs that have output models and are not hidden
     const { data: trainedModels, error } = await supabase
       .from("training_jobs")
       .select(
@@ -37,6 +37,7 @@ export async function getTrainedModelsFromDatabase(): Promise<ModelType[]> {
       )
       .eq("status", "succeeded")
       .not("output_model_url", "is", null)
+      .or("is_hidden.is.null,is_hidden.eq.false")
       .order("completed_at", { ascending: false })
 
     if (error) {
@@ -61,7 +62,7 @@ export async function getTrainingModelsFromDatabase(): Promise<ModelType[]> {
   try {
     const supabase = await createClient()
 
-    // Fetch training jobs that are currently processing
+    // Fetch training jobs that are currently processing and are not hidden
     const { data: trainingModels, error } = await supabase
       .from("training_jobs")
       .select(
@@ -83,6 +84,7 @@ export async function getTrainingModelsFromDatabase(): Promise<ModelType[]> {
       `
       )
       .in("status", ["starting", "processing"])
+      .or("is_hidden.is.null,is_hidden.eq.false")
       .order("created_at", { ascending: false })
 
     if (error) {

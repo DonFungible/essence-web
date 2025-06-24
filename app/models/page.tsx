@@ -72,6 +72,7 @@ export default async function ModelsPage() {
       isVerified: model.status === "succeeded", // Example: "succeeded" models are "verified"
       href: `/models/${model.id}`, // model.id is now replicate_job_id or dbId
       description: model.description || "",
+      modelId: model.dbId || model.id, // Pass the database ID for delete functionality
     }))
   )
 
@@ -186,6 +187,7 @@ export default async function ModelsPage() {
                         captioning={model.styles.find((s) => s.includes("captioning")) || undefined}
                         createdAt={model.createdAt || new Date().toISOString()}
                         href={`/models/${model.id}`}
+                        modelId={model.dbId || model.id}
                       />
                     ))
                   )}

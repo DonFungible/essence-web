@@ -95,7 +95,7 @@ export default async function ModelPage({ params }: Props) {
             </header>
 
             {/* Style Reference Section */}
-            <section className="mb-10">
+            <section className="mb-10 rounded-xl border p-6 bg-slate-50">
               <div className="flex items-center mb-4">
                 <h2 className="text-2xl font-semibold text-slate-700">Style Reference</h2>
                 <span className="ml-2 text-sm text-slate-500">
@@ -107,14 +107,14 @@ export default async function ModelPage({ params }: Props) {
                 {styleReferenceImages.map((img, index) => (
                   <div
                     key={index}
-                    className="aspect-square relative rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-shadow"
+                    className="aspect-square relative rounded-lg overflow-hidden hover:shadow-xl transition-shadow"
                   >
                     <Image
                       src={img.src || "/placeholder.svg"}
                       alt={img.alt}
                       fill
                       sizes="(max-width: 640px) 50vw, (max-width: 768px) 25vw, 200px"
-                      className="object-cover"
+                      className="object-contain"
                     />
                   </div>
                 ))}

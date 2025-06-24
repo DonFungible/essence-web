@@ -50,6 +50,7 @@ export function useRecentGenerations(modelId: string) {
         .from("image_generations")
         .select("*")
         .eq("model_id", modelId)
+        .or("is_hidden.is.null,is_hidden.eq.false")
         .order("created_at", { ascending: false })
         .limit(10)
 
