@@ -64,12 +64,12 @@ export default function RecentGenerationsGrid({ modelId, modelName }: RecentGene
       <h2 className="text-2xl font-semibold text-slate-700 mb-6">Recent Generations</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
         {generations.map((gen) => (
-          <Link key={gen.id} href={`/image/${gen.id}`} passHref>
+          <Link key={gen.id} href={`/creations/${gen.id}`} passHref>
             <Card className="overflow-hidden shadow-sm hover:shadow-xl transition-shadow duration-300 group h-full flex flex-col">
               <div className="aspect-square bg-slate-100 flex items-center justify-center relative">
-                {gen.supabase_image_url || gen.image_url ? (
+                {gen.supabase_image_url ? (
                   <SafeImage
-                    src={gen.supabase_image_url || gen.image_url!}
+                    src={gen.supabase_image_url}
                     alt={`Generated image for prompt: ${gen.prompt}`}
                     width={400}
                     height={400}
