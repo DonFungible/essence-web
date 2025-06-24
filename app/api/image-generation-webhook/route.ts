@@ -121,6 +121,32 @@ export async function POST(req: NextRequest) {
         typeof replicateError === "string" ? replicateError : JSON.stringify(replicateError)
     } else if (status === "processing") {
       console.log(`⏳ Image generation processing for ${replicatePredictionId}`)
+
+      // Check for NSFW or other errors in logs even when status is "processing"
+      if (logs && typeof logs === "string") {
+        const logLower = logs.toLowerCase()
+        if (
+          logLower.includes("nsfw") ||
+          logLower.includes("content policy") ||
+          logLower.includes("safety filter") ||
+          logLower.includes("inappropriate content")
+        ) {
+          console.log(`🚫 NSFW content detected in logs for ${replicatePredictionId}`)
+          updateData.status = "failed"
+          updateData.error_message = "Error generating image: NSFW content detected."
+        }
+      }
+
+      // Also check if there's an error field even when status is processing
+      if (replicateError) {
+        console.log(
+          `❌ Error found during processing for ${replicatePredictionId}:`,
+          replicateError
+        )
+        updateData.status = "failed"
+        updateData.error_message =
+          typeof replicateError === "string" ? replicateError : JSON.stringify(replicateError)
+      }
     } else if (status === "starting") {
       console.log(`🚀 Image generation starting for ${replicatePredictionId}`)
     }

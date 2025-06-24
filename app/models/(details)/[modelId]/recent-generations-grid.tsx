@@ -78,14 +78,26 @@ export default function RecentGenerationsGrid({ modelId, modelName }: RecentGene
                   />
                 ) : (
                   <div className="text-slate-400 p-4 text-center">
-                    {gen.status === "pending" || gen.status === "processing" ? (
-                      <Loader2 className="h-10 w-10 mx-auto mb-2 animate-spin text-blue-500" />
+                    {gen.error_message ? (
+                      <div className="text-red-500">
+                        <XCircle className="h-10 w-10 mx-auto mb-2" />
+                        <p className="text-xs font-medium">
+                          {gen.error_message.includes("NSFW")
+                            ? "Generation failed due to potential NSFW"
+                            : "Generation failed"}
+                        </p>
+                      </div>
+                    ) : gen.status === "pending" || gen.status === "processing" ? (
+                      <div className="text-blue-500">
+                        <Loader2 className="h-10 w-10 mx-auto mb-2 animate-spin" />
+                        <p className="text-xs">Processing...</p>
+                      </div>
                     ) : (
-                      <ImageIcon className="h-10 w-10 mx-auto mb-2" />
+                      <div>
+                        <ImageIcon className="h-10 w-10 mx-auto mb-2" />
+                        <p className="text-xs">No image</p>
+                      </div>
                     )}
-                    {gen.status === "pending" || gen.status === "processing"
-                      ? "Processing..."
-                      : "No image"}
                   </div>
                 )}
               </div>
