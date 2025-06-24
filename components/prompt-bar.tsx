@@ -305,7 +305,6 @@ export function PromptBar() {
                                 />
                                 <div className="flex flex-col">
                                   <span>{model.name}</span>
-                                  <span className="text-xs text-slate-500">{model.version}</span>
                                 </div>
                               </CommandItem>
                             ))}
@@ -358,72 +357,15 @@ export function PromptBar() {
 
             {/* Generation Tracking - Only on Homepage */}
             {isHomePage && generations.length > 0 && (
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {generations.slice(0, 5).map((generation) => (
-                  <div
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {generations.slice(0, 3).map((generation) => (
+                  <button
                     key={generation.id}
-                    className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border"
+                    onClick={() => router.push(`/models/${generation.modelId}`)}
+                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline cursor-pointer block truncate text-left w-full"
                   >
-                    <div className="flex-shrink-0 mt-1">
-                      {generation.status === "pending" && (
-                        <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                      )}
-                      {generation.status === "completed" && (
-                        <CheckCircle2 className="w-5 h-5 text-green-600" />
-                      )}
-                      {generation.status === "failed" && <X className="w-5 h-5 text-red-600" />}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-slate-900 truncate">
-                          {generation.prompt}
-                        </p>
-                        <span
-                          className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer underline ml-2 flex-shrink-0"
-                          onClick={() => router.push(`/models/${generation.modelId}`)}
-                        >
-                          {generation.modelName}
-                        </span>
-                      </div>
-
-                      <div className="mt-1">
-                        {generation.status === "pending" && (
-                          <p className="text-xs text-slate-600">
-                            Creating image...{" "}
-                            {Math.floor((Date.now() - generation.startTime) / 1000)}s
-                          </p>
-                        )}
-                        {generation.status === "completed" && generation.imageUrl && (
-                          <div className="mt-2">
-                            <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-slate-200">
-                              <Image
-                                src={generation.imageUrl}
-                                alt={generation.prompt}
-                                fill
-                                className="object-cover"
-                                sizes="80px"
-                              />
-                            </div>
-                          </div>
-                        )}
-                        {generation.status === "failed" && (
-                          <p className="text-xs text-red-600">
-                            {generation.error || "Generation failed"}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() =>
-                        setGenerations((prev) => prev.filter((g) => g.id !== generation.id))
-                      }
-                      className="flex-shrink-0 text-slate-400 hover:text-slate-600 p-1"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+                    {generation.prompt} → {generation.modelName}
+                  </button>
                 ))}
               </div>
             )}

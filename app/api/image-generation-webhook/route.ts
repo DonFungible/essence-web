@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      auth: { autoRefreshToken: false, persistSession: false }
+      auth: { autoRefreshToken: false, persistSession: false },
     }
   )
 
@@ -28,18 +28,18 @@ export async function POST(req: NextRequest) {
     status: body.status,
     hasOutput: !!body.output,
     hasError: !!body.error,
-    hasLogs: !!body.logs
+    hasLogs: !!body.logs,
   })
 
-  const { 
-    id: replicatePredictionId, 
-    status, 
-    output, 
-    error: replicateError, 
-    logs, 
+  const {
+    id: replicatePredictionId,
+    status,
+    output,
+    error: replicateError,
+    logs,
     metrics,
     completed_at,
-    started_at
+    started_at,
   } = body
 
   if (!replicatePredictionId) {
@@ -47,7 +47,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing Replicate Prediction ID" }, { status: 400 })
   }
 
-  console.log(`🔄 Processing image generation webhook for prediction ${replicatePredictionId} with status: ${status}`)
+  console.log(
+    `🔄 Processing image generation webhook for prediction ${replicatePredictionId} with status: ${status}`
+  )
 
   try {
     // Find the generation record in our database
@@ -58,7 +60,10 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (findError || !generationRecord) {
-      console.error(`❌ Generation record not found for prediction ${replicatePredictionId}:`, findError)
+      console.error(
+        `❌ Generation record not found for prediction ${replicatePredictionId}:`,
+        findError
+      )
       return NextResponse.json({ error: "Generation record not found" }, { status: 404 })
     }
 
@@ -80,18 +85,18 @@ export async function POST(req: NextRequest) {
     // Handle different status types
     if (status === "succeeded" && output) {
       console.log(`✅ Image generation succeeded for ${replicatePredictionId}`)
-      
+
       // Output is typically an array of URLs for Flux models
       const imageUrl = Array.isArray(output) ? output[0] : output
-      
-      if (imageUrl && typeof imageUrl === 'string') {
+
+      if (imageUrl && typeof imageUrl === "string") {
         console.log(`🖼️ Generated image URL: ${imageUrl}`)
         updateData.image_url = imageUrl
-        
+
         try {
           // Download and store the image in Supabase
           const storedImageData = await downloadAndStoreImage(imageUrl, generationRecord.id)
-          
+
           if (storedImageData.success) {
             updateData.supabase_image_url = storedImageData.publicUrl
             updateData.supabase_storage_path = storedImageData.storagePath
@@ -110,14 +115,12 @@ export async function POST(req: NextRequest) {
         updateData.error_message = "Invalid image output format received"
         updateData.status = "failed"
       }
-      
     } else if (status === "failed" && replicateError) {
       console.log(`❌ Image generation failed for ${replicatePredictionId}:`, replicateError)
-      updateData.error_message = typeof replicateError === "string" ? replicateError : JSON.stringify(replicateError)
-      
+      updateData.error_message =
+        typeof replicateError === "string" ? replicateError : JSON.stringify(replicateError)
     } else if (status === "processing") {
       console.log(`⏳ Image generation processing for ${replicatePredictionId}`)
-      
     } else if (status === "starting") {
       console.log(`🚀 Image generation starting for ${replicatePredictionId}`)
     }
@@ -137,20 +140,78 @@ export async function POST(req: NextRequest) {
 
     console.log(`✅ Updated generation record for ${replicatePredictionId}`)
 
-    return NextResponse.json({ 
-      message: "Image generation webhook processed successfully",
-      predictionId: replicatePredictionId,
-      generationId: updatedRecord.id,
-      status: status
-    }, { status: 200 })
-
+    return NextResponse.json(
+      {
+        message: "Image generation webhook processed successfully",
+        predictionId: replicatePredictionId,
+        generationId: updatedRecord.id,
+        status: status,
+      },
+      { status: 200 }
+    )
   } catch (err: any) {
-    console.error(`💥 Unexpected error processing image generation webhook for ${replicatePredictionId}:`, err)
-    return NextResponse.json({ 
-      error: "Internal server error",
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
-    }, { status: 500 })
+    console.error(
+      `💥 Unexpected error processing image generation webhook for ${replicatePredictionId}:`,
+      err
+    )
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details: process.env.NODE_ENV === "development" ? err.message : undefined,
+      },
+      { status: 500 }
+    )
   }
+}
+
+/**
+ * Download image with retry logic to handle network failures
+ * Retries up to 3 times with exponential backoff
+ */
+async function downloadImageWithRetry(imageUrl: string, maxRetries: number = 3) {
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`📥 Download attempt ${attempt}/${maxRetries} for: ${imageUrl}`)
+
+      const response = await fetch(imageUrl, {
+        headers: {
+          "User-Agent": "EssenceWeb/1.0",
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to download image: ${response.status} ${response.statusText}`)
+      }
+
+      const imageBuffer = await response.arrayBuffer()
+      const contentType = response.headers.get("content-type") || "image/webp"
+
+      console.log(`✅ Image downloaded successfully on attempt ${attempt}`)
+
+      return {
+        imageBuffer,
+        contentType,
+      }
+    } catch (error: any) {
+      lastError = error
+      console.error(`❌ Download attempt ${attempt} failed:`, error.message)
+
+      // If this isn't the last attempt, wait before retrying
+      if (attempt < maxRetries) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delayMs = 1000 * Math.pow(2, attempt - 1)
+        console.log(`⏳ Waiting ${delayMs}ms before retry...`)
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      }
+    }
+  }
+
+  // If we get here, all retries failed
+  throw new Error(
+    `Failed to download image after ${maxRetries} attempts. Last error: ${lastError?.message}`
+  )
 }
 
 /**
@@ -160,26 +221,20 @@ export async function POST(req: NextRequest) {
 async function downloadAndStoreImage(imageUrl: string, generationId: string) {
   try {
     console.log(`📥 Downloading image from: ${imageUrl}`)
-    
-    // Download the image
-    const response = await fetch(imageUrl)
-    if (!response.ok) {
-      throw new Error(`Failed to download image: ${response.statusText}`)
-    }
 
-    const imageBuffer = await response.arrayBuffer()
-    const contentType = response.headers.get('content-type') || 'image/webp'
-    
+    // Download the image with retry logic
+    const { imageBuffer, contentType } = await downloadImageWithRetry(imageUrl)
+
     // Determine file extension
-    let extension = 'webp'
-    if (contentType.includes('jpeg') || contentType.includes('jpg')) {
-      extension = 'jpg'
-    } else if (contentType.includes('png')) {
-      extension = 'png'
+    let extension = "webp"
+    if (contentType.includes("jpeg") || contentType.includes("jpg")) {
+      extension = "jpg"
+    } else if (contentType.includes("png")) {
+      extension = "png"
     }
 
     // Generate storage path
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
     const fileName = `${generationId}-${timestamp}.${extension}`
     const storagePath = `public/${fileName}`
 
@@ -194,9 +249,9 @@ async function downloadAndStoreImage(imageUrl: string, generationId: string) {
 
     const { error: uploadError, data: uploadData } = await supabaseAdmin.storage
       .from("generated-images")
-      .upload(storagePath, imageBuffer, { 
+      .upload(storagePath, imageBuffer, {
         contentType,
-        upsert: false 
+        upsert: false,
       })
 
     if (uploadError) {
@@ -227,14 +282,13 @@ async function downloadAndStoreImage(imageUrl: string, generationId: string) {
       success: true,
       publicUrl: urlData.publicUrl,
       storagePath: storagePath,
-      imageSize: imageSize
+      imageSize: imageSize,
     }
-
   } catch (error: any) {
     console.error("❌ Error downloading and storing image:", error)
     return {
       success: false,
-      error: error.message
+      error: error.message,
     }
   }
 }

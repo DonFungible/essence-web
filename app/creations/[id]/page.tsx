@@ -9,6 +9,7 @@ import TopBar from "@/components/top-bar" // Re-using topbar
 import { useGalleryImage } from "@/hooks/use-gallery-images"
 import { useGeneration } from "@/hooks/use-image-generation"
 import { useModel } from "@/hooks/use-model-description"
+import { useParams } from "next/navigation"
 
 interface ImageDetailPageProps {
   params: {
@@ -18,9 +19,10 @@ interface ImageDetailPageProps {
 
 export default function ImageDetailPage({ params }: ImageDetailPageProps) {
   // Determine if this is a gallery image (numeric ID) or generated image (UUID)
-  const isGalleryImage = !isNaN(Number(params.id))
-  const galleryImageId = isGalleryImage ? Number.parseInt(params.id, 10) : null
-  const generationId = !isGalleryImage ? params.id : null
+  const { id } = useParams()
+  const isGalleryImage = !isNaN(Number(id))
+  const galleryImageId = isGalleryImage ? Number.parseInt(id as string, 10) : null
+  const generationId = !isGalleryImage ? (id as string) : null
 
   // Fetch appropriate data based on image type
   const {
@@ -150,13 +152,6 @@ export default function ImageDetailPage({ params }: ImageDetailPageProps) {
                       ? galleryImage?.title
                       : generatedImage?.prompt?.slice(0, 50) + "..." || "Generated Image"}
                   </h1>
-
-                  <div className="flex items-center text-sm text-slate-600 mb-4">
-                    <User className="w-4 h-4 mr-2 text-slate-500" />
-                    <span>
-                      {isGalleryImage ? `Created by: ${galleryImage?.author}` : "AI Generated"}
-                    </span>
-                  </div>
 
                   {/* Status Badge for Generated Images */}
                   {!isGalleryImage && generatedImage && (
