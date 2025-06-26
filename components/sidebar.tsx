@@ -38,35 +38,6 @@ const Sidebar = () => {
       <nav className="flex-grow space-y-1 text-[16px]">
         {navItems.map((item) => {
           const active = !item.disabled && isActive(item.href)
-          if (item.href === "/") {
-            // Special handling for Explore button style
-            return (
-              <Link href={item.href} key={item.label} passHref legacyBehavior={item.disabled}>
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start items-center text-[16px] py-2 px-3 h-auto",
-                    active
-                      ? "bg-slate-100 text-slate-900 font-medium hover:bg-slate-100"
-                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
-                    item.disabled &&
-                      "text-slate-400 cursor-not-allowed hover:bg-transparent hover:text-slate-400"
-                  )}
-                  disabled={item.disabled}
-                  aria-current={active ? "page" : undefined}
-                >
-                  <item.icon
-                    className={cn(
-                      "w-5 h-5 mr-2",
-                      active ? "text-slate-900" : "text-slate-600",
-                      item.disabled && "text-slate-400"
-                    )}
-                  />
-                  <span>{item.label}</span>
-                </Button>
-              </Link>
-            )
-          }
           return (
             <Link
               key={item.label}

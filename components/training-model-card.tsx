@@ -102,10 +102,7 @@ export default function TrainingModelCard({
 
   return (
     <div className="relative group">
-      <Link
-        href={href}
-        className="block group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 rounded-xl"
-      >
+      <div className="block group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 rounded-xl">
         <div className="relative w-full aspect-[3/4] bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl overflow-hidden shadow-sm transition-all duration-300 ease-in-out group-hover:shadow-lg group-hover:border-slate-400">
           {/* Training overlay */}
           <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-purple-50/50 z-10" />
@@ -155,7 +152,7 @@ export default function TrainingModelCard({
             </div>
           </div>
         </div>
-      </Link>
+      </div>
 
       {/* Delete Button - Only show if modelId is provided */}
       {modelId && (
