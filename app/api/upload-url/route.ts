@@ -12,14 +12,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Validate file size (2000MB limit)
-    if (fileSize > 2000 * 1024 * 1024) {
-      return NextResponse.json({ error: "File size exceeds 200MB limit" }, { status: 400 })
+    // Determine if this is an image or ZIP file
+    const validImageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    const isImage = validImageTypes.some((type) => fileType.includes(type))
+    const isZip = fileType.includes("zip") || fileType.includes("application/zip")
+
+    if (!isImage && !isZip) {
+      return NextResponse.json(
+        {
+          error: "Only ZIP files (for models) and image files (JPG, PNG, WEBP, GIF) are allowed",
+        },
+        { status: 400 }
+      )
     }
 
-    // Validate file type
-    if (!fileType.includes("zip") && !fileType.includes("application/zip")) {
-      return NextResponse.json({ error: "Only ZIP files are allowed" }, { status: 400 })
+    // Apply different size limits based on file type
+    if (isImage && fileSize > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: "Image file size exceeds 5MB limit" }, { status: 400 })
+    }
+
+    if (isZip && fileSize > 2000 * 1024 * 1024) {
+      return NextResponse.json({ error: "ZIP file size exceeds 2GB limit" }, { status: 400 })
     }
 
     // Create Supabase admin client
@@ -35,18 +48,19 @@ export async function POST(req: NextRequest) {
     const originalName = fileName
     const lastDot = originalName.lastIndexOf(".")
     const baseName = lastDot > -1 ? originalName.substring(0, lastDot) : originalName
-    const extension = lastDot > -1 ? originalName.substring(lastDot + 1) : "zip"
-    const sanitizedBaseName = baseName.replace(/\s+/g, "_")
+    const extension = lastDot > -1 ? originalName.substring(lastDot + 1) : isZip ? "zip" : "jpg"
+    const sanitizedBaseName = baseName.replace(/[^a-zA-Z0-9.-]/g, "_")
     const uniqueId = uuidv4()
     const newFileName = `${sanitizedBaseName}-${uniqueId}.${extension}`
-    const storagePath = `public/${newFileName}`
+
+    // Use different buckets and paths based on file type
+    const bucket = isImage ? "assets" : "models"
+    const storagePath = isImage ? `previews/${newFileName}` : `public/${newFileName}`
 
     // Generate signed upload URL (expires in 10 minutes)
-    const { data, error } = await supabase.storage
-      .from("models")
-      .createSignedUploadUrl(storagePath, {
-        upsert: false,
-      })
+    const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(storagePath, {
+      upsert: false,
+    })
 
     if (error) {
       console.error("Error creating signed URL:", error)
@@ -54,7 +68,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get the public URL for later use
-    const { data: urlData } = supabase.storage.from("models").getPublicUrl(storagePath)
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath)
 
     return NextResponse.json({
       uploadUrl: data.signedUrl,

@@ -4,31 +4,65 @@ import { createClient } from "@/utils/supabase/server"
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { id } = await params
-    const { description } = await request.json()
+    const body = await request.json()
+    const { description, preview_image_url } = body
 
-    // Validate input
-    if (typeof description !== "string") {
+    // Validate that at least one field is provided
+    if (!description && !preview_image_url) {
+      return NextResponse.json(
+        { error: "Either description or preview_image_url must be provided" },
+        { status: 400 }
+      )
+    }
+
+    // Validate description if provided
+    if (description !== undefined && typeof description !== "string") {
       return NextResponse.json({ error: "Description must be a string" }, { status: 400 })
     }
 
-    if (description.length > 2000) {
+    if (description && description.length > 2000) {
       return NextResponse.json(
         { error: "Description must be less than 2000 characters" },
         { status: 400 }
       )
     }
 
+    // Validate preview_image_url if provided
+    if (preview_image_url !== undefined) {
+      if (typeof preview_image_url !== "string") {
+        return NextResponse.json({ error: "Preview image URL must be a string" }, { status: 400 })
+      }
+
+      // Validate URL format (basic check)
+      if (preview_image_url.trim()) {
+        try {
+          new URL(preview_image_url)
+        } catch {
+          return NextResponse.json({ error: "Invalid URL format" }, { status: 400 })
+        }
+      }
+    }
+
     // Create Supabase client
     const supabase = await createClient()
 
-    // Update the description in the database
+    // Prepare update data
+    const updateData: any = {}
+    if (description !== undefined) {
+      updateData.description = description.trim() || null
+    }
+    if (preview_image_url !== undefined) {
+      updateData.preview_image_url = preview_image_url.trim() || null
+    }
+
+    // Update the model in the database
     // The id could be either the database id or replicate_job_id
     let data, error
 
     // Try updating by replicate_job_id first (most common case)
     const { data: updateByReplicateId, error: replicateIdError } = await supabase
       .from("training_jobs")
-      .update({ description: description.trim() || null })
+      .update(updateData)
       .eq("replicate_job_id", id)
       .select()
       .single()
@@ -37,7 +71,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       // Record not found, try by database id
       const { data: updateByDbId, error: dbIdError } = await supabase
         .from("training_jobs")
-        .update({ description: description.trim() || null })
+        .update(updateData)
         .eq("id", id)
         .select()
         .single()
@@ -56,7 +90,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         return NextResponse.json({ error: "Model not found" }, { status: 404 })
       }
 
-      return NextResponse.json({ error: "Failed to update description" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to update model" }, { status: 500 })
     }
 
     return NextResponse.json({

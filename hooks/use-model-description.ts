@@ -109,3 +109,87 @@ export function useUpdateModelDescription(modelId: string) {
     },
   })
 }
+
+// Hook for updating model preview images
+export function useUpdateModelPreviewImage(modelId: string) {
+  const queryClient = useQueryClient()
+  const supabase = createClient()
+
+  // Set up real-time subscription for model updates
+  useEffect(() => {
+    const channel = supabase
+      .channel(`model-preview-${modelId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "training_jobs",
+          filter: `replicate_job_id=eq.${modelId}`,
+        },
+        (payload) => {
+          console.log("🔄 Real-time model preview image update:", payload)
+
+          // Invalidate and refetch queries that might show this model
+          queryClient.invalidateQueries({
+            queryKey: ["models"],
+          })
+          queryClient.invalidateQueries({
+            queryKey: ["model", modelId],
+          })
+
+          // Force refetch the specific model
+          queryClient.refetchQueries({
+            queryKey: ["model", modelId],
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [modelId, queryClient, supabase])
+
+  return useMutation({
+    mutationFn: async ({ preview_image_url }: { preview_image_url: string }) => {
+      const response = await fetch(`/api/models/${modelId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ preview_image_url }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update preview image")
+      }
+
+      return response.json()
+    },
+    onSuccess: (data) => {
+      // Optimistically update the cache with the new preview image
+      queryClient.setQueryData(["model", modelId], (oldData: any) => {
+        if (oldData) {
+          return {
+            ...oldData,
+            preview_image_url: data.data.preview_image_url,
+          }
+        }
+        return oldData
+      })
+
+      // Also invalidate and refetch to ensure fresh data
+      queryClient.invalidateQueries({
+        queryKey: ["models"],
+      })
+      queryClient.refetchQueries({
+        queryKey: ["model", modelId],
+      })
+    },
+    onError: (error) => {
+      console.error("Error updating model preview image:", error)
+    },
+  })
+}
