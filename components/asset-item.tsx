@@ -18,7 +18,7 @@ export default function AssetItem({ asset, isSelected, onSelectToggle }: AssetIt
   const handleCardClick = () => {
     onSelectToggle(asset.id)
   }
-
+  console.log("asset.src", asset.src)
   const handleCheckboxClick = (e: React.MouseEvent) => {
     // Prevent card click from firing when checkbox is clicked directly
     e.stopPropagation()
@@ -29,7 +29,7 @@ export default function AssetItem({ asset, isSelected, onSelectToggle }: AssetIt
     <Card
       className={cn(
         "overflow-hidden cursor-pointer transition-all duration-200 ease-in-out",
-        isSelected ? "ring-2 ring-blue-500 shadow-lg" : "hover:shadow-md",
+        isSelected ? "ring-2 ring-blue-500 shadow-lg" : "hover:shadow-md"
       )}
       onClick={handleCardClick}
     >
@@ -52,20 +52,19 @@ export default function AssetItem({ asset, isSelected, onSelectToggle }: AssetIt
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className={cn(
               "object-cover transition-transform duration-300 ease-in-out",
-              isSelected ? "scale-105" : "group-hover:scale-105",
+              isSelected ? "scale-105" : "group-hover:scale-105"
             )}
             priority={asset.id === "asset_001" || asset.id === "asset_002"} // Prioritize first few images
           />
         </div>
-        {isSelected && <div className="absolute inset-0 bg-blue-500 bg-opacity-20 pointer-events-none" />}
+        {isSelected && (
+          <div className="absolute inset-0 bg-blue-500 bg-opacity-20 pointer-events-none" />
+        )}
       </CardContent>
       <div className="p-3 bg-white">
         <h3 className="font-medium text-sm text-slate-700 truncate" title={asset.name}>
           {asset.name}
         </h3>
-        {asset.tags && asset.tags.length > 0 && (
-          <p className="text-xs text-slate-500 truncate">{asset.tags.join(", ")}</p>
-        )}
       </div>
     </Card>
   )

@@ -147,7 +147,7 @@ export default function TrainModelPage() {
         console.log("🚀 Uploading preview image...")
         const previewUploadResult = await uploadPreviewImageFile(previewImageFile, {
           // You might want a different path or bucket for previews
-          storagePath: "previews/",
+          storagePathPrefix: "previews/",
         })
         previewImageUrl = previewUploadResult.publicUrl
         console.log("✅ Preview image uploaded:", previewImageUrl)

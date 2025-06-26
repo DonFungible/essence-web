@@ -85,7 +85,7 @@ export default async function ModelsPage() {
           <div className="mx-auto">
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h1 className="text-3xl font-bold text-slate-800">Your Style Models</h1>
+                <h1 className="text-3xl font-bold text-slate-800">Hall of Mirrors</h1>
                 <p className="text-slate-500 mt-1">
                   Browse and manage your custom trained style models.
                 </p>

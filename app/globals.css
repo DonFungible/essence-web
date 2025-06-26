@@ -70,11 +70,6 @@
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
-    background-image: url("/subtle-noise-texture.png");
-    background-repeat: repeat; /* This ensures it tiles */
-  }
 
   .dark body {
     /* Optionally, a different or no texture for dark mode */
