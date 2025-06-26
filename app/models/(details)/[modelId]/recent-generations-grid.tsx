@@ -60,11 +60,7 @@ function GenerationDeleteButton({ generation }: { generation: GenerationRecord }
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-white">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>

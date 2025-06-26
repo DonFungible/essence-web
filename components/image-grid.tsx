@@ -193,7 +193,7 @@ const ImageGridItem = ({ image }: { image: (typeof images)[0] }) => {
           unoptimized
         />
         {isHovered && (
-          <div className="absolute inset-0 bg-black bg-opacity-20 flex flex-col justify-end p-3 transition-opacity duration-300">
+          <div className="absolute inset-0  bg-opacity-20 flex flex-col justify-end p-3 transition-opacity duration-300">
             <div className="flex items-center justify-between">
               <p className="text-xs text-white font-medium px-2 py-1 rounded">{image.author}</p>
               <div className="flex space-x-1">

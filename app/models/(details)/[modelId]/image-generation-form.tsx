@@ -8,7 +8,13 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -18,7 +24,7 @@ import {
   useGeneration,
   useGenerateImage,
   useGenerationSubscription,
-  type GenerationRecord
+  type GenerationRecord,
 } from "@/hooks/use-image-generation"
 import type { GenerationParams } from "./generate-image"
 
@@ -49,7 +55,7 @@ const OUTPUT_FORMATS = [
 export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFormProps) {
   const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  
+
   // Form state
   const [formData, setFormData] = useState<GenerationParams>({
     prompt: "",
@@ -66,13 +72,13 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
     data: recentGenerations = [],
     isLoading: isLoadingRecent,
     error: recentError,
-    refetch: refetchRecent
+    refetch: refetchRecent,
   } = useRecentGenerations(modelId)
 
   const {
     data: currentGeneration,
     isLoading: isLoadingCurrent,
-    error: currentError
+    error: currentError,
   } = useGeneration(currentGenerationId)
 
   const generateMutation = useGenerateImage(modelId)
@@ -82,7 +88,7 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
 
   // Clear current generation when it's completed
   useEffect(() => {
-    if (currentGeneration?.status === 'succeeded' || currentGeneration?.status === 'failed') {
+    if (currentGeneration?.status === "succeeded" || currentGeneration?.status === "failed") {
       // Delay clearing to let user see the result
       const timer = setTimeout(() => {
         setCurrentGenerationId(null)
@@ -92,7 +98,7 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
   }, [currentGeneration?.status])
 
   const updateFormData = (updates: Partial<GenerationParams>) => {
-    setFormData(prev => ({ ...prev, ...updates }))
+    setFormData((prev) => ({ ...prev, ...updates }))
   }
 
   async function handleGenerate() {
@@ -106,45 +112,57 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
       // Clear only the prompt, keep other settings
       updateFormData({ prompt: "" })
     } catch (error) {
-      console.error('Generation failed:', error)
+      console.error("Generation failed:", error)
       // Error is handled by the mutation's onError
     }
   }
 
   function getStatusColor(status: string) {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'processing': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'succeeded': return 'bg-green-100 text-green-800 border-green-200'
-      case 'failed': return 'bg-red-100 text-red-800 border-red-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      case "pending":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "processing":
+        return "bg-blue-100 text-blue-800 border-blue-200"
+      case "succeeded":
+        return "bg-green-100 text-green-800 border-green-200"
+      case "failed":
+        return "bg-red-100 text-red-800 border-red-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
   function getStatusText(status: string) {
     switch (status) {
-      case 'pending': return 'Starting...'
-      case 'processing': return 'Generating...'
-      case 'succeeded': return 'Complete'
-      case 'failed': return 'Failed'
-      default: return status
+      case "pending":
+        return "Starting..."
+      case "processing":
+        return "Generating..."
+      case "succeeded":
+        return "Complete"
+      case "failed":
+        return "Failed"
+      default:
+        return status
     }
   }
 
   function getStatusIcon(status: string) {
     switch (status) {
-      case 'pending':
-      case 'processing':
+      case "pending":
+      case "processing":
         return <Loader2 className="w-4 h-4 animate-spin" />
-      case 'failed':
+      case "failed":
         return <AlertCircle className="w-4 h-4" />
       default:
         return null
     }
   }
 
-  const isGenerating = generateMutation.isPending || 
-    (currentGeneration?.status === 'pending' || currentGeneration?.status === 'processing')
+  const isGenerating =
+    generateMutation.isPending ||
+    currentGeneration?.status === "pending" ||
+    currentGeneration?.status === "processing"
 
   return (
     <div className="space-y-6">
@@ -176,8 +194,8 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="aspect-ratio">Aspect Ratio</Label>
-              <Select 
-                value={formData.aspect_ratio} 
+              <Select
+                value={formData.aspect_ratio}
                 onValueChange={(value) => updateFormData({ aspect_ratio: value })}
                 disabled={isGenerating}
               >
@@ -196,8 +214,8 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
 
             <div className="space-y-2">
               <Label htmlFor="output-format">Output Format</Label>
-              <Select 
-                value={formData.output_format} 
+              <Select
+                value={formData.output_format}
                 onValueChange={(value) => updateFormData({ output_format: value })}
                 disabled={isGenerating}
               >
@@ -251,7 +269,9 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
               <Button variant="ghost" className="flex items-center gap-2 p-0">
                 <Settings className="w-4 h-4" />
                 Advanced Settings
-                <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
+                />
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-4 mt-4">
@@ -316,7 +336,9 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
                   type="number"
                   placeholder="Random seed for reproducible generation"
                   value={formData.seed || ""}
-                  onChange={(e) => updateFormData({ seed: e.target.value ? parseInt(e.target.value) : undefined })}
+                  onChange={(e) =>
+                    updateFormData({ seed: e.target.value ? parseInt(e.target.value) : undefined })
+                  }
                   disabled={isGenerating}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -343,24 +365,22 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
           {generateMutation.error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {generateMutation.error.message}
-              </AlertDescription>
+              <AlertDescription>{generateMutation.error.message}</AlertDescription>
             </Alert>
           )}
 
-          <Button 
-            onClick={handleGenerate} 
+          <Button
+            onClick={handleGenerate}
             disabled={isGenerating || !formData.prompt?.trim()}
             className="w-full"
           >
             {isGenerating ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {generateMutation.isPending ? 'Starting...' : 'Generating...'}
+                {generateMutation.isPending ? "Starting..." : "Generating..."}
               </>
             ) : (
-              'Generate Image'
+              "Generate Image"
             )}
           </Button>
         </CardContent>
@@ -405,19 +425,17 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
               {currentGeneration.error_message && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    {currentGeneration.error_message}
-                  </AlertDescription>
+                  <AlertDescription>{currentGeneration.error_message}</AlertDescription>
                 </Alert>
               )}
 
-              {currentGeneration.status === 'succeeded' && currentGeneration.supabase_image_url && (
+              {currentGeneration.status === "succeeded" && currentGeneration.supabase_image_url && (
                 <div>
                   <p className="text-sm font-medium mb-2">Generated Image:</p>
                   <img
                     src={currentGeneration.supabase_image_url}
                     alt={currentGeneration.prompt}
-                    className="w-full max-w-md rounded-lg border"
+                    className="w-full max-w-md rounded-xl"
                     loading="lazy"
                   />
                   {currentGeneration.generation_time_seconds && (
@@ -428,11 +446,14 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
                 </div>
               )}
 
-              {(currentGeneration.status === 'pending' || currentGeneration.status === 'processing') && (
+              {(currentGeneration.status === "pending" ||
+                currentGeneration.status === "processing") && (
                 <div className="flex items-center space-x-2">
                   <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                   <span className="text-sm text-muted-foreground">
-                    {currentGeneration.status === 'pending' ? 'Waiting to start...' : 'Generating your image...'}
+                    {currentGeneration.status === "pending"
+                      ? "Waiting to start..."
+                      : "Generating your image..."}
                   </span>
                 </div>
               )}
@@ -452,7 +473,7 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
               onClick={() => refetchRecent()}
               disabled={isLoadingRecent}
             >
-              <RefreshCw className={`w-4 h-4 ${isLoadingRecent ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isLoadingRecent ? "animate-spin" : ""}`} />
             </Button>
           </div>
         </CardHeader>
@@ -490,16 +511,16 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
                       {new Date(generation.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  
+
                   <p className="text-sm font-medium line-clamp-2">{generation.prompt}</p>
-                  
+
                   {/* Generation details */}
                   <div className="text-xs text-muted-foreground space-y-1">
                     <div>Aspect: {generation.aspect_ratio}</div>
                     {generation.seed && <div>Seed: {generation.seed}</div>}
                   </div>
-                  
-                  {generation.status === 'succeeded' && generation.supabase_image_url && (
+
+                  {generation.status === "succeeded" && generation.supabase_image_url && (
                     <img
                       src={generation.supabase_image_url}
                       alt={generation.prompt}
@@ -507,8 +528,8 @@ export function ImageGenerationForm({ modelId, triggerWord }: ImageGenerationFor
                       loading="lazy"
                     />
                   )}
-                  
-                  {generation.status === 'failed' && generation.error_message && (
+
+                  {generation.status === "failed" && generation.error_message && (
                     <p className="text-xs text-red-600 line-clamp-2">{generation.error_message}</p>
                   )}
 

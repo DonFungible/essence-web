@@ -258,7 +258,7 @@ export default function ModelHoverCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                  className="h-8 w-8 bg-black/50 hover:bg-black/50 text-white"
                   onClick={(e) => e.preventDefault()} // Prevent navigation when clicking dropdown
                 >
                   <MoreVertical className="h-4 w-4" />
