@@ -147,7 +147,7 @@ export default function TrainModelPage() {
         console.log("🚀 Uploading preview image...")
         const previewUploadResult = await uploadPreviewImageFile(previewImageFile, {
           // You might want a different path or bucket for previews
-          storagePathPrefix: "previews/",
+          storagePath: "previews/",
         })
         previewImageUrl = previewUploadResult.publicUrl
         console.log("✅ Preview image uploaded:", previewImageUrl)
@@ -172,7 +172,7 @@ export default function TrainModelPage() {
       setIsLoading(false)
       if (result.success && result.jobId) {
         setIsModalOpen(false)
-        router.push(`/train/status?jobId=${result.jobId}`)
+        router.push(`/models`)
       } else {
         setFormError(result.error || "Failed to start training job. Please try again.")
         setIsModalOpen(false)

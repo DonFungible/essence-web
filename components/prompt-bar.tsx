@@ -232,11 +232,11 @@ export function PromptBar() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 p-6 z-50 bg-transparent pointer-events-none">
+    <div className="fixed bottom-0 left-0 right-0 p-3 z-50 bg-transparent pointer-events-none">
       <div className="max-w-2xl mx-auto">
         <form action={formAction} className="pointer-events-auto">
-          <div className="bg-white/95 backdrop-blur-md p-6 rounded-2xl shadow-[0_20px_25px_-5px_rgb(0,0,0,0.1),0_10px_10px_-5px_rgb(0,0,0,0.04)] border border-slate-300/60 ring-1 ring-slate-900/5 flex flex-col space-y-4 mb-2">
-            <div className="flex items-start space-x-2">
+          <div className="bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-[0_20px_25px_-5px_rgb(0,0,0,0.1),0_10px_10px_-5px_rgb(0,0,0,0.04)] border border-slate-300/60 ring-1 ring-slate-900/5 flex flex-col space-y-4 mb-2">
+            <div className="flex items-start space-x-0">
               <Textarea
                 name="prompt"
                 value={prompt}
@@ -256,8 +256,27 @@ export function PromptBar() {
                 required
               />
 
-              <div className="flex items-center space-x-2 pl-1 my-auto h-full">
-                {isHomePage && (
+              <div className="flex items-center my-auto">
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="bg-slate-800 hover:bg-slate-700 rounded-lg w-8 h-8"
+                  disabled={isPending || !selectedModelId || isLoadingModels}
+                >
+                  {isPending ? (
+                    <X className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ArrowUp className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Model selector and settings row */}
+            <div className="flex items-center">
+              <div className="flex-1 flex items-center">
+                {/* Model selector - different display for home vs model page */}
+                {isHomePage ? (
                   <Popover open={isModelSelectorOpen} onOpenChange={setModelSelectorOpen}>
                     <PopoverTrigger asChild>
                       <Button
@@ -265,7 +284,7 @@ export function PromptBar() {
                         variant="outline"
                         role="combobox"
                         aria-expanded={isModelSelectorOpen}
-                        className="justify-between text-slate-600 hover:bg-slate-50 px-2 text-xs py-1 h-8 w-auto"
+                        className="justify-center text-slate-600 hover:bg-slate-50 text-sm py-2 h-9"
                         disabled={isLoadingModels}
                         onClick={() =>
                           console.log(
@@ -278,7 +297,7 @@ export function PromptBar() {
                           {selectedModel?.name ||
                             (isLoadingModels ? "Loading models..." : "Select a model...")}
                         </span>
-                        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[250px] p-0" align="start">
@@ -313,42 +332,29 @@ export function PromptBar() {
                       </Command>
                     </PopoverContent>
                   </Popover>
+                ) : (
+                  // Fixed model display for model pages - no dropdown, no arrows
+                  <div className="flex items-center px-3 py-2 text-sm text-slate-700 bg-slate-50 rounded-md border">
+                    <span className="truncate">{selectedModel?.name || "Loading..."}</span>
+                  </div>
                 )}
               </div>
 
-              <div className="flex items-center space-x-1 my-auto">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-slate-500 hover:bg-slate-100 rounded-full w-8 h-8 m-auto"
-                  onClick={handleSettingsToggle}
-                  aria-expanded={isSettingsExpanded}
-                  aria-controls="settings-form"
-                >
-                  {isSettingsExpanded ? (
-                    <X className="w-4 h-4" />
-                  ) : (
-                    <Settings className="w-4 h-4" />
-                  )}
-                  <span className="sr-only">
-                    {isSettingsExpanded ? "Close settings" : "Open settings"}
-                  </span>
-                </Button>
-
-                <Button
-                  type="submit"
-                  size="icon"
-                  className="bg-slate-800 hover:bg-slate-700 rounded-lg w-8 h-8"
-                  disabled={isPending || !selectedModelId || isLoadingModels}
-                >
-                  {isPending ? (
-                    <X className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <ArrowUp className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-slate-500 hover:bg-slate-100 rounded-lg py-2 ml-auto"
+                onClick={handleSettingsToggle}
+                aria-expanded={isSettingsExpanded}
+                aria-controls="settings-form"
+              >
+                <span className="text-sm">Settings</span>
+                {isSettingsExpanded ? (
+                  <X className="w-4 h-4 mr-2" />
+                ) : (
+                  <Settings className="my-auto flex mr-auto" />
+                )}
+              </Button>
             </div>
 
             <input type="hidden" name="raw_mode" value={String(isRawMode)} />
@@ -417,7 +423,7 @@ export function PromptBar() {
                     </span>
                   </TooltipProvider>
                   <TooltipProvider delayDuration={100}>
-                    <div className="grid gap-2">
+                    <div className="grid">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center space-x-1.5">
                           <Label htmlFor="finetune-strength" className="text-sm">
@@ -431,7 +437,7 @@ export function PromptBar() {
                               <p>
                                 How strongly the finetuned model overrides the base model
                                 generation: 0 = ignore, 1 = balanced mix, 1.5 = (default), 2 =
-                                finetune dominates. Raise if the style/subject isn’t showing; lower
+                                finetune dominates. Raise if the style/subject isn't showing; lower
                                 if results look over-baked or repetitive.
                               </p>
                             </TooltipContent>
