@@ -12,7 +12,7 @@ export function TopBar() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <Input
             type="search"
-            placeholder="Search designs..."
+            placeholder="Search designs, models, artists..."
             className="pl-10 pr-16 py-2 h-10 w-full bg-slate-50 border-slate-200 focus:bg-white focus:border-slate-300"
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-1 text-xs text-slate-400">
