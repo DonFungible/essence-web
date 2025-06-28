@@ -6,8 +6,9 @@ export interface StyleReferenceImage {
 }
 
 /**
- * Fetches style reference images from Supabase storage bucket
- * Looks for images in the assets/{modelName} bucket (up to 4 images)
+ * Fetches style reference images from Supabase storage bucket or training images database
+ * First checks for individual training images, then falls back to assets bucket
+ * Returns ALL available images (no limit)
  */
 export async function getStyleReferenceImages(modelName: string): Promise<StyleReferenceImage[]> {
   try {
@@ -18,12 +19,45 @@ export async function getStyleReferenceImages(modelName: string): Promise<StyleR
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
+    // First, check if this model was trained with individual images
+    const { data: trainingJob, error: trainingJobError } = await supabase
+      .from("training_jobs")
+      .select("id, has_individual_images, replicate_job_id")
+      .eq("trigger_word", modelName)
+      .eq("has_individual_images", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!trainingJobError && trainingJob) {
+      console.log(`Found training job with individual images for model: ${modelName}`)
+
+      // Fetch ALL individual training images from database
+      const { data: trainingImages, error: imagesError } = await supabase
+        .from("training_images")
+        .select("supabase_public_url, original_filename")
+        .eq("training_job_id", trainingJob.id)
+        .order("display_order", { ascending: true })
+
+      if (!imagesError && trainingImages && trainingImages.length > 0) {
+        const styleImages: StyleReferenceImage[] = trainingImages.map((img, index) => ({
+          src: img.supabase_public_url,
+          alt: `${modelName} training image - ${img.original_filename.replace(/\.[^/.]+$/, "")}`,
+        }))
+
+        console.log(
+          `Found ${styleImages.length} individual training images for model: ${modelName}`
+        )
+        return styleImages
+      }
+    }
+
+    // Fallback to existing assets bucket logic
     // Clean model name for bucket path
     const bucketPath = modelName
 
-    // List files in the model's assets bucket
+    // List ALL files in the model's assets bucket
     const { data: files, error } = await supabase.storage.from("assets").list(bucketPath, {
-      limit: 4,
       sortBy: { column: "name", order: "asc" },
     })
 
@@ -48,8 +82,8 @@ export async function getStyleReferenceImages(modelName: string): Promise<StyleR
       return getDefaultStyleImages()
     }
 
-    // Get public URLs for the images (limit to 4)
-    const styleImages: StyleReferenceImage[] = imageFiles.slice(0, 4).map((file) => {
+    // Get public URLs for ALL images
+    const styleImages: StyleReferenceImage[] = imageFiles.map((file) => {
       const { data: urlData } = supabase.storage
         .from("assets")
         .getPublicUrl(`${bucketPath}/${file.name}`)
@@ -78,7 +112,7 @@ export async function getFirstStyleReferenceImage(modelName: string): Promise<st
     // Return the first image if it exists and is not a default placeholder
     if (styleImages.length > 0) {
       const firstImage = styleImages[0]
-      // Only return if it's a custom image from storage (not a default placeholder)
+      // Only return if it's a custom image from storage or database (not a default placeholder)
       if (firstImage.src && !firstImage.src.startsWith("/")) {
         return firstImage.src
       }

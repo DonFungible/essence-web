@@ -107,7 +107,8 @@ async function testStyleImages(modelName = "MCESCHER") {
     })
 
     console.log(`\n✅ Style reference images system working correctly!`)
-    console.log(`📊 Result: ${styleImages.length} image(s) would be displayed on model page`)
+    console.log(`📊 Result: ALL ${styleImages.length} image(s) would be displayed on model page`)
+    console.log(`🔄 Note: If more than 12 images, the UI will show a "Show More" button`)
   } catch (error) {
     console.error("❌ Unexpected error:", error)
   }

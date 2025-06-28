@@ -66,6 +66,8 @@ export async function startTrainingJobOptimized(data: {
   trainingSteps?: string
   previewImageUrl?: string // New optional field
   description?: string | null // New optional field
+  hasIndividualImages?: boolean // New optional field to indicate individual images
+  individualImagesCount?: number // New optional field for image count
 }) {
   console.log("[TRAIN_ACTION_OPTIMIZED] Starting training job submission...")
   const {
@@ -77,6 +79,8 @@ export async function startTrainingJobOptimized(data: {
     trainingSteps = "300",
     previewImageUrl,
     description,
+    hasIndividualImages = false,
+    individualImagesCount = 0,
   } = data
 
   if (!publicUrl || !triggerWord) {
@@ -134,9 +138,30 @@ export async function startTrainingJobOptimized(data: {
           description: description,
           original_dataset_filename: originalFileName,
           supabase_storage_path: storagePath,
+          has_individual_images: hasIndividualImages,
+          individual_images_count: individualImagesCount,
         })
         .select()
         .single()
+
+      // If this job has individual images, update the training images with the replicate job ID
+      if (hasIndividualImages && dbRes) {
+        const { error: updateError } = await supabaseAdmin
+          .from("training_images")
+          .update({ replicate_job_id: replicateResult.replicateJobId })
+          .eq("training_job_id", dbRes.id)
+
+        if (updateError) {
+          console.error(
+            "[TRAIN_ACTION] Error updating training images with replicate job ID:",
+            updateError
+          )
+        } else {
+          console.log(
+            `[TRAIN_ACTION] Updated training images with replicate job ID: ${replicateResult.replicateJobId}`
+          )
+        }
+      }
     } catch (error) {
       console.error("[TRAIN_ACTION] Error logging to database:", error)
       return { success: false, error: "Failed to log training job to database." }
@@ -154,6 +179,59 @@ export async function startTrainingJobOptimized(data: {
   } catch (err: any) {
     console.error("[TRAIN_ACTION_OPTIMIZED] Error:", err)
     return { success: false, error: err.message || "Failed to start training job." }
+  }
+}
+
+// Function to pre-create training job for individual image uploads
+export async function createTrainingJobForImages(data: {
+  triggerWord: string
+  captioning?: string
+  trainingSteps?: string
+  previewImageUrl?: string
+  description?: string | null
+  imageCount: number
+}) {
+  console.log("[CREATE_TRAINING_JOB] Creating training job for individual images...")
+
+  const {
+    triggerWord,
+    captioning = "automatic",
+    trainingSteps = "300",
+    previewImageUrl,
+    description,
+    imageCount,
+  } = data
+
+  try {
+    const { data: dbRes, error } = await supabaseAdmin
+      .from("training_jobs")
+      .insert({
+        status: "preparing", // Initial status before Replicate submission
+        trigger_word: triggerWord,
+        training_steps: Number.parseInt(trainingSteps),
+        captioning: captioning,
+        preview_image_url: previewImageUrl,
+        description: description,
+        has_individual_images: true,
+        individual_images_count: imageCount,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error("[CREATE_TRAINING_JOB] Database error:", error)
+      return { success: false, error: "Failed to create training job record." }
+    }
+
+    console.log(`[CREATE_TRAINING_JOB] Created training job with ID: ${dbRes.id}`)
+    return {
+      success: true,
+      trainingJobId: dbRes.id,
+      dbRecord: dbRes,
+    }
+  } catch (err: any) {
+    console.error("[CREATE_TRAINING_JOB] Error:", err)
+    return { success: false, error: err.message || "Failed to create training job." }
   }
 }
 

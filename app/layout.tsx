@@ -7,7 +7,7 @@ import { QueryProvider } from "@/components/query-provider"
 import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = {
-  title: "v0 App",
+  title: "App",
   description: "Created with v0",
   generator: "v0.dev",
 }

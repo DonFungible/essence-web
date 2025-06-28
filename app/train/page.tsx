@@ -43,7 +43,7 @@ import {
 import { useFileUpload } from "@/hooks/use-upload"
 import Image from "next/image" // Added Next Image for preview
 
-import { startTrainingJobOptimized } from "./actions"
+import { startTrainingJobOptimized, createTrainingJobForImages } from "./actions"
 
 // --- React Client Component ---
 
@@ -51,6 +51,8 @@ export default function TrainModelPage() {
   const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [fileName, setFileName] = useState("")
+  const [images, setImages] = useState<File[]>([]) // New state for multiple images
+  const [uploadType, setUploadType] = useState<"zip" | "images" | null>(null) // Track upload type
 
   const [previewImageFile, setPreviewImageFile] = useState<File | null>(null) // New state for preview image file
   const [previewImageSrc, setPreviewImageSrc] = useState<string | null>(null) // New state for preview image src for display
@@ -65,6 +67,7 @@ export default function TrainModelPage() {
     uploading: datasetUploading,
     progress: datasetProgress,
     uploadFile: uploadDatasetFile,
+    uploadMultipleImages: uploadMultipleImagesFile,
   } = useFileUpload()
   const {
     uploading: previewUploading,
@@ -73,18 +76,61 @@ export default function TrainModelPage() {
   } = useFileUpload()
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0]
-      if (!selectedFile.type.includes("zip") && !selectedFile.type.includes("application/zip")) {
-        setFormError("Please upload a valid .zip dataset file.")
+    if (e.target.files) {
+      const fileList = Array.from(e.target.files)
+
+      if (fileList.length === 1) {
+        const selectedFile = fileList[0] as File
+
+        // Check if it's a zip file
+        if (selectedFile.type.includes("zip") || selectedFile.type.includes("application/zip")) {
+          if (selectedFile.size > 2000 * 1024 * 1024) {
+            setFormError("ZIP file size must be less than 2GB.")
+            return
+          }
+          setFile(selectedFile)
+          setFileName(selectedFile.name)
+          setImages([])
+          setUploadType("zip")
+          setFormError(null)
+          return
+        }
+      }
+
+      // Check if all files are images
+      const validImageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+      const imageFiles = fileList as File[]
+      const invalidFiles = imageFiles.filter((file) => !validImageTypes.includes(file.type))
+
+      if (invalidFiles.length > 0) {
+        setFormError("All files must be images (JPG, PNG, WEBP, GIF) or a single ZIP file.")
         return
       }
-      if (selectedFile.size > 2000 * 1024 * 1024) {
-        setFormError("Dataset file size must be less than 2GB.")
+
+      // Check minimum images requirement
+      if (imageFiles.length < 5) {
+        setFormError("At least 5 images are required for training.")
         return
       }
-      setFile(selectedFile)
-      setFileName(selectedFile.name)
+
+      // Check individual file sizes
+      const oversizedFiles = imageFiles.filter((file) => file.size > 10 * 1024 * 1024)
+      if (oversizedFiles.length > 0) {
+        setFormError(`Some images are too large. Maximum size is 10MB per image.`)
+        return
+      }
+
+      // Check total size
+      const totalSize = imageFiles.reduce((sum, file) => sum + file.size, 0)
+      if (totalSize > 500 * 1024 * 1024) {
+        setFormError("Total images size exceeds 500MB limit.")
+        return
+      }
+
+      setImages(imageFiles)
+      setFile(null)
+      setFileName("")
+      setUploadType("images")
       setFormError(null)
     }
   }
@@ -116,14 +162,31 @@ export default function TrainModelPage() {
     }
   }
 
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const clearAllFiles = () => {
+    setFile(null)
+    setFileName("")
+    setImages([])
+    setUploadType(null)
+    setFormError(null)
+    // Reset file input
+    const fileInput = document.getElementById("file-upload") as HTMLInputElement
+    if (fileInput) {
+      fileInput.value = ""
+    }
+  }
+
   const handleFormSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!isConsentGiven) {
       setFormError("You must agree to the terms to start training.")
       return
     }
-    if (!file) {
-      setFormError("Please select a dataset file to upload.")
+    if (!file && images.length === 0) {
+      setFormError("Please select a dataset file or images to upload.")
       return
     }
 
@@ -145,28 +208,59 @@ export default function TrainModelPage() {
       let previewImageUrl: string | undefined = undefined
       if (previewImageFile) {
         console.log("🚀 Uploading preview image...")
-        const previewUploadResult = await uploadPreviewImageFile(previewImageFile, {
-          // You might want a different path or bucket for previews
-          storagePathPrefix: "previews/",
-        })
+        const previewUploadResult = await uploadPreviewImageFile(previewImageFile)
         previewImageUrl = previewUploadResult.publicUrl
         console.log("✅ Preview image uploaded:", previewImageUrl)
       }
 
-      // Upload dataset (optimized flow)
-      console.log("🚀 Uploading dataset file...")
-      const datasetUploadResult = await uploadDatasetFile(file)
-      console.log("✅ Dataset uploaded successfully:", datasetUploadResult.publicUrl)
+      // Upload dataset (handle both zip file and multiple images)
+      let datasetUploadResult: { publicUrl: string; storagePath: string; fileName: string }
+      let originalFileName: string
+      let trainingJobId: string | undefined
+
+      if (uploadType === "zip" && file) {
+        console.log("🚀 Uploading ZIP dataset file...")
+        datasetUploadResult = await uploadDatasetFile(file)
+        originalFileName = fileName
+        console.log("✅ ZIP dataset uploaded successfully:", datasetUploadResult.publicUrl)
+      } else if (uploadType === "images" && images.length > 0) {
+        // For individual images, create training job first to get ID
+        console.log("🚀 Creating training job for individual images...")
+        const trainingJobResult = await createTrainingJobForImages({
+          triggerWord: triggerWord || "TOK",
+          captioning: captioning || "automatic",
+          trainingSteps: trainingSteps || "300",
+          previewImageUrl: previewImageUrl,
+          description: description,
+          imageCount: images.length,
+        })
+
+        if (!trainingJobResult.success) {
+          throw new Error(trainingJobResult.error || "Failed to create training job")
+        }
+
+        trainingJobId = trainingJobResult.trainingJobId
+        console.log(`✅ Training job created with ID: ${trainingJobId}`)
+
+        console.log(`🚀 Uploading ${images.length} images and creating ZIP...`)
+        datasetUploadResult = await uploadMultipleImagesFile(images, { trainingJobId })
+        originalFileName = `${images.length}-images-dataset.zip`
+        console.log("✅ Images uploaded and zipped successfully:", datasetUploadResult.publicUrl)
+      } else {
+        throw new Error("Invalid upload type or missing files")
+      }
 
       result = await startTrainingJobOptimized({
         publicUrl: datasetUploadResult.publicUrl,
         storagePath: datasetUploadResult.storagePath,
-        originalFileName: fileName,
+        originalFileName: originalFileName,
         triggerWord: triggerWord || "TOK",
         captioning: captioning || "automatic",
         trainingSteps: trainingSteps || "300",
         previewImageUrl: previewImageUrl, // Pass new field
         description: description, // Pass new field
+        hasIndividualImages: uploadType === "images",
+        individualImagesCount: uploadType === "images" ? images.length : 0,
       })
 
       setIsLoading(false)
@@ -191,7 +285,9 @@ export default function TrainModelPage() {
     ? previewProgress
     : 0
   const uploadMessage = datasetUploading
-    ? `Uploading Dataset... ${datasetProgress}%`
+    ? uploadType === "images"
+      ? `Creating ZIP from ${images.length} images... ${datasetProgress}%`
+      : `Uploading Dataset... ${datasetProgress}%`
     : previewUploading
     ? `Uploading Preview... ${previewProgress}%`
     : "Starting Training..."
@@ -203,13 +299,14 @@ export default function TrainModelPage() {
         <TopBar />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl">
           <div className="max-w-3xl mx-auto">
-            {!file && (
-              // Initial dataset upload card - unchanged
+            {!file && images.length === 0 && (
+              // Initial dataset upload card
               <Card className="">
                 <CardHeader>
                   <CardTitle>Train a New Style Model</CardTitle>
                   <CardDescription>
-                    Start by uploading your dataset as a .zip file (up to 2GB).
+                    Upload your dataset as a .zip file (up to 2GB) or select multiple images
+                    (minimum 5, max 10MB each).
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -222,20 +319,24 @@ export default function TrainModelPage() {
                       <p className="mb-2 text-sm text-slate-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-slate-500">
-                        ZIP file (up to 2GB, minimum 10 images)
+                      <p className="text-xs text-slate-500 text-center">
+                        ZIP file (up to 2GB) or multiple images (JPG, PNG, WEBP, GIF)
+                        <br />
+                        Minimum 5 images required • Maximum 10MB per image
                       </p>
                     </div>
                     <Input
                       id="file-upload"
                       type="file"
                       className="hidden"
-                      accept=".zip"
+                      accept=".zip,image/jpeg,image/png,image/webp,image/gif"
+                      multiple
                       onChange={handleFileChange}
                     />
                   </Label>
                   {formError &&
-                    !file && ( // Show error only if no file selected yet
+                    !file &&
+                    images.length === 0 && ( // Show error only if no files selected yet
                       <p className="mt-2 text-sm text-red-600">
                         <AlertCircle className="inline w-4 h-4 mr-1" />
                         {formError}
@@ -247,17 +348,71 @@ export default function TrainModelPage() {
 
             <form id="trainModelForm" onSubmit={handleFormSubmit}>
               <div className="space-y-6">
-                {file && (
+                {file && uploadType === "zip" && (
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center">
-                        <FileZip className="mr-2" />
-                        Selected Dataset
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <FileZip className="mr-2" />
+                          Selected ZIP Dataset
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={clearAllFiles}>
+                          <X className="h-4 w-4 mr-1" />
+                          Remove
+                        </Button>
                       </CardTitle>
                       <CardDescription>
                         {fileName} • {Math.round(file.size / 1024 / 1024)}MB
                       </CardDescription>
                     </CardHeader>
+                  </Card>
+                )}
+
+                {images.length > 0 && uploadType === "images" && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <ImageIcon className="mr-2" />
+                          Selected Images ({images.length})
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={clearAllFiles}>
+                          <X className="h-4 w-4 mr-1" />
+                          Remove All
+                        </Button>
+                      </CardTitle>
+                      <CardDescription>
+                        Total size:{" "}
+                        {Math.round(images.reduce((sum, img) => sum + img.size, 0) / 1024 / 1024)}MB
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                        {images.map((image, index) => (
+                          <div key={index} className="relative group">
+                            <div className="aspect-square relative rounded-lg overflow-hidden border">
+                              <Image
+                                src={URL.createObjectURL(image)}
+                                alt={`Preview ${index + 1}`}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                              />
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => removeImage(index)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1 truncate">{image.name}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
                   </Card>
                 )}
 
@@ -377,7 +532,7 @@ export default function TrainModelPage() {
                   type="button"
                   className="w-full"
                   onClick={() => setIsModalOpen(true)}
-                  disabled={isLoading || !file}
+                  disabled={isLoading || (!file && images.length === 0)}
                 >
                   {isLoading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -433,7 +588,7 @@ export default function TrainModelPage() {
                         <Button
                           type="submit"
                           form="trainModelForm"
-                          disabled={!isConsentGiven || isLoading || !file}
+                          disabled={!isConsentGiven || isLoading || (!file && images.length === 0)}
                         >
                           {isLoading ? (
                             <>

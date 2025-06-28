@@ -3,6 +3,7 @@ import Image from "next/image"
 import { ArrowLeft, Cpu, Palette } from "lucide-react"
 
 import ModelClientContent from "./model-client-content"
+import StyleReferenceGrid from "./style-reference-grid"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
@@ -103,30 +104,8 @@ export default async function ModelPage({ params }: Props) {
                   )
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {styleReferenceImages.map((img, index) => (
-                  <div
-                    key={index}
-                    className="aspect-square relative rounded-lg overflow-hidden hover:shadow-xl transition-shadow"
-                  >
-                    <Image
-                      src={img.src || "/placeholder.svg"}
-                      alt={img.alt}
-                      fill
-                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 25vw, 200px"
-                      className="object-contain"
-                    />
-                  </div>
-                ))}
-              </div>
 
-              {/* Show message when using default images */}
-              {styleReferenceImages.length === 4 && styleReferenceImages[0].src.startsWith("/") && (
-                <p className="text-xs text-slate-400 mt-2 italic">
-                  No custom style images found. Upload images to assets/{model.name} bucket to show
-                  model-specific examples.
-                </p>
-              )}
+              <StyleReferenceGrid images={styleReferenceImages} modelName={model.name} />
             </section>
 
             <ModelClientContent model={model} />
