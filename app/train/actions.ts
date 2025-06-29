@@ -3,6 +3,7 @@ import Replicate from "replicate"
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 import { headers } from "next/headers"
+import { canUserTrain } from "@/lib/story-protocol"
 
 /** Throws if an env var is missing or empty. */
 function requireEnv(name: string): string {
@@ -57,6 +58,23 @@ async function submitToReplicate(
   }
 }
 
+export async function checkUserCanTrain(walletAddress: string) {
+  console.log("[CHECK_USER_TRAIN] Checking if user can train:", walletAddress)
+
+  try {
+    const result = await canUserTrain(walletAddress)
+    console.log("[CHECK_USER_TRAIN] Result:", result)
+    return result
+  } catch (error) {
+    console.error("[CHECK_USER_TRAIN] Error:", error)
+    return {
+      canTrain: false,
+      reason: "Failed to validate training eligibility",
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+}
+
 export async function startTrainingJobOptimized(data: {
   publicUrl: string // Dataset URL
   storagePath: string // Dataset storage path
@@ -68,6 +86,8 @@ export async function startTrainingJobOptimized(data: {
   description?: string | null // New optional field
   hasIndividualImages?: boolean // New optional field to indicate individual images
   individualImagesCount?: number // New optional field for image count
+  userWalletAddress?: string // New optional field for balance validation
+  ipRegistrationMethod?: "backend" | "wallet" // New field for IP registration method
 }) {
   console.log("[TRAIN_ACTION_OPTIMIZED] Starting training job submission...")
   const {
@@ -81,10 +101,30 @@ export async function startTrainingJobOptimized(data: {
     description,
     hasIndividualImages = false,
     individualImagesCount = 0,
+    userWalletAddress,
+    ipRegistrationMethod = "backend",
   } = data
 
   if (!publicUrl || !triggerWord) {
     return { success: false, error: "Missing required parameters (dataset URL or trigger word)." }
+  }
+
+  // Only validate balance if using connected wallet for IP registration
+  if (userWalletAddress && ipRegistrationMethod === "wallet") {
+    const canTrainResult = await canUserTrain(userWalletAddress)
+    if (!canTrainResult.canTrain) {
+      console.log(`[TRAIN_ACTION] User ${userWalletAddress} cannot train: ${canTrainResult.reason}`)
+      return {
+        success: false,
+        error: canTrainResult.reason || "Insufficient balance for IP registration",
+        balanceCheckFailed: true,
+      }
+    }
+    console.log(`[TRAIN_ACTION] User ${userWalletAddress} can train: ${canTrainResult.reason}`)
+  } else if (ipRegistrationMethod === "backend") {
+    console.log("[TRAIN_ACTION] Using backend wallet for IP registration - no balance check needed")
+  } else {
+    console.warn("[TRAIN_ACTION] No wallet address provided for balance validation")
   }
 
   try {
@@ -140,6 +180,7 @@ export async function startTrainingJobOptimized(data: {
           supabase_storage_path: storagePath,
           has_individual_images: hasIndividualImages,
           individual_images_count: individualImagesCount,
+          ip_registration_method: ipRegistrationMethod,
         })
         .select()
         .single()
@@ -190,6 +231,8 @@ export async function createTrainingJobForImages(data: {
   previewImageUrl?: string
   description?: string | null
   imageCount: number
+  userWalletAddress?: string
+  ipRegistrationMethod?: "backend" | "wallet"
 }) {
   console.log("[CREATE_TRAINING_JOB] Creating training job for individual images...")
 
@@ -200,7 +243,31 @@ export async function createTrainingJobForImages(data: {
     previewImageUrl,
     description,
     imageCount,
+    userWalletAddress,
+    ipRegistrationMethod = "backend",
   } = data
+
+  // Only validate balance if using connected wallet for IP registration
+  if (userWalletAddress && ipRegistrationMethod === "wallet") {
+    const canTrainResult = await canUserTrain(userWalletAddress)
+    if (!canTrainResult.canTrain) {
+      console.log(
+        `[CREATE_TRAINING_JOB] User ${userWalletAddress} cannot train: ${canTrainResult.reason}`
+      )
+      return {
+        success: false,
+        error: canTrainResult.reason || "Insufficient balance for IP registration",
+        balanceCheckFailed: true,
+      }
+    }
+    console.log(
+      `[CREATE_TRAINING_JOB] User ${userWalletAddress} can train: ${canTrainResult.reason}`
+    )
+  } else if (ipRegistrationMethod === "backend") {
+    console.log(
+      "[CREATE_TRAINING_JOB] Using backend wallet for IP registration - no balance check needed"
+    )
+  }
 
   try {
     const { data: dbRes, error } = await supabaseAdmin
@@ -214,6 +281,7 @@ export async function createTrainingJobForImages(data: {
         description: description,
         has_individual_images: true,
         individual_images_count: imageCount,
+        ip_registration_method: ipRegistrationMethod,
       })
       .select()
       .single()

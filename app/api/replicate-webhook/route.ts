@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { mintAndRegisterIP, isStoryConfigured, getSPGNftContract } from "@/lib/story-protocol"
 
 // Import the extraction function directly
 async function extractStyleImages(
@@ -321,6 +322,20 @@ export async function POST(req: NextRequest) {
               console.error(`⚠️ Style image extraction error for ${input.trigger_word}:`, error)
             })
         }
+
+        // Register trained model as IP asset on Story Protocol (non-blocking)
+        if (isStoryConfigured() && input.trigger_word) {
+          console.log(`📝 Starting Story Protocol registration for model: ${input.trigger_word}`)
+
+          registerTrainedModelAsIP(replicateJobId, input.trigger_word, output).catch(
+            (error: any) => {
+              console.error(
+                `⚠️ Story Protocol registration error for ${input.trigger_word}:`,
+                error
+              )
+            }
+          )
+        }
       } else {
         console.log(`✅ Job ${replicateJobId} succeeded with output (no input data in webhook)`)
       }
@@ -488,5 +503,163 @@ export async function POST(req: NextRequest) {
       },
       { status: 500 }
     )
+  }
+}
+
+// Background function to register trained model as IP asset and derivative
+async function registerTrainedModelAsIP(
+  replicateJobId: string,
+  triggerWord: string,
+  modelOutput: any
+) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { autoRefreshToken: false, persistSession: false },
+    }
+  )
+
+  try {
+    console.log(`📝 Registering trained model as IP for job: ${replicateJobId}`)
+
+    // Get training job details and associated training images
+    const { data: trainingJob, error: jobError } = await supabase
+      .from("training_jobs")
+      .select(
+        `
+        *,
+        training_images (
+          id,
+          story_ip_id,
+          story_registration_status,
+          original_filename
+        )
+      `
+      )
+      .eq("replicate_job_id", replicateJobId)
+      .single()
+
+    if (jobError || !trainingJob) {
+      console.error(`❌ Could not find training job: ${replicateJobId}`, jobError)
+      return
+    }
+
+    // Get registered training image IP assets
+    const registeredImageIPs =
+      trainingJob.training_images
+        ?.filter((img: any) => img.story_ip_id && img.story_registration_status === "registered")
+        ?.map((img: any) => img.story_ip_id) || []
+
+    console.log(`Found ${registeredImageIPs.length} registered training image IPs`)
+
+    // Create metadata for the trained model
+    const modelMetadata = {
+      title: `AI Model: ${triggerWord}`,
+      description: `AI model trained on ${
+        trainingJob.training_images?.length || 0
+      } images. Trigger word: ${triggerWord}. Generated using ${
+        trainingJob.captioning || "automatic"
+      } captioning with ${trainingJob.training_steps || 300} training steps.`,
+      ipType: "model" as const,
+      attributes: [
+        {
+          trait_type: "Model Type",
+          value: "AI Training Model",
+        },
+        {
+          trait_type: "Trigger Word",
+          value: triggerWord,
+        },
+        {
+          trait_type: "Training Steps",
+          value: (trainingJob.training_steps || 300).toString(),
+        },
+        {
+          trait_type: "Captioning",
+          value: trainingJob.captioning || "automatic",
+        },
+        {
+          trait_type: "Training Images Count",
+          value: (trainingJob.training_images?.length || 0).toString(),
+        },
+        {
+          trait_type: "Replicate Job ID",
+          value: replicateJobId,
+        },
+      ],
+    }
+
+    const spgContract = getSPGNftContract()
+
+    // Register the model as an IP asset
+    console.log(`📝 Registering model IP asset for: ${triggerWord}`)
+    const modelResult = await mintAndRegisterIP({
+      spgNftContract: spgContract,
+      metadata: modelMetadata,
+    })
+
+    if (!modelResult.success) {
+      console.error(`❌ Failed to register model IP:`, modelResult.error)
+
+      // Update job with failed status
+      await supabase
+        .from("training_jobs")
+        .update({
+          story_model_registration_status: "failed",
+        })
+        .eq("replicate_job_id", replicateJobId)
+
+      return
+    }
+
+    console.log(`✅ Registered model IP: ${modelResult.ipId}`)
+
+    // Update training job with model IP information
+    const updateData: any = {
+      story_model_ip_id: modelResult.ipId,
+      story_model_nft_contract: spgContract,
+      story_model_token_id: modelResult.tokenId?.toString(),
+      story_model_tx_hash: modelResult.txHash,
+      story_model_registration_status: "registered",
+    }
+
+    // If we have registered training image IPs, store them as parent IPs
+    if (registeredImageIPs.length > 0) {
+      updateData.story_parent_ip_ids = registeredImageIPs
+      console.log(
+        `📝 Stored ${registeredImageIPs.length} parent IP IDs for derivative relationship`
+      )
+    }
+
+    const { error: updateError } = await supabase
+      .from("training_jobs")
+      .update(updateData)
+      .eq("replicate_job_id", replicateJobId)
+
+    if (updateError) {
+      console.error(`❌ Error updating training job with model IP:`, updateError)
+    } else {
+      console.log(`✅ Updated training job ${replicateJobId} with model IP: ${modelResult.ipId}`)
+    }
+
+    // TODO: Implement derivative registration when Story Protocol supports it
+    // For now, we're just registering the model as an independent IP asset
+    // In the future, we could register it as a derivative of the training images
+    // using registerDerivativeIP once license tokens are properly set up
+  } catch (error) {
+    console.error("❌ Error in registerTrainedModelAsIP:", error)
+
+    // Update job with failed status
+    try {
+      await supabase
+        .from("training_jobs")
+        .update({
+          story_model_registration_status: "failed",
+        })
+        .eq("replicate_job_id", replicateJobId)
+    } catch (updateError) {
+      console.error("❌ Error updating failed status:", updateError)
+    }
   }
 }

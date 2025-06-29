@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, type FormEvent, useRef, useEffect } from "react"
+import { useState, type FormEvent, useRef, useEffect } from "react" // Added useRef and useEffect
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
@@ -50,12 +50,12 @@ import {
   X,
 } from "lucide-react"
 import { useFileUpload } from "@/hooks/use-upload"
-import { usePresignedUpload } from "@/hooks/use-presigned-upload"
 import Image from "next/image"
 import { usePrivy } from "@privy-io/react-auth"
 
 import { startTrainingJobOptimized, createTrainingJobForImages, checkUserCanTrain } from "./actions"
 import { useStoryIPRegistration } from "@/hooks/use-story-ip-registration"
+import { registerIpAssetWithBackend } from "@/lib/story-protocol-client"
 import { zeroAddress } from "viem"
 
 // Progress tracking types
@@ -71,6 +71,83 @@ interface TrainingProgress {
   trainingStarted: boolean
   error?: string
 }
+
+// Custom hook for tracking upload progress with registration steps
+function useUploadWithIPRegistration() {
+  const [progress, setProgress] = useState({
+    uploadProgress: 0,
+    registrationProgress: null as {
+      total: number
+      completed: number
+      current?: string
+      zipProgress?: boolean
+    } | null,
+  })
+
+  const uploadMultipleImagesWithIP = async (
+    images: File[],
+    options: { trainingJobId: string; onProgress?: (progress: number) => void }
+  ) => {
+    // Create FormData
+    const formData = new FormData()
+    images.forEach((image) => {
+      formData.append("images", image)
+    })
+    formData.append("trainingJobId", options.trainingJobId)
+
+    // Use XMLHttpRequest for progress tracking
+    return new Promise<{ publicUrl: string; storagePath: string; fileName: string }>(
+      (resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            // Upload progress is only 30% of total process
+            const uploadProgress = Math.round((event.loaded / event.total) * 30)
+            setProgress((prev) => ({ ...prev, uploadProgress }))
+            options.onProgress?.(uploadProgress)
+          }
+        })
+
+        xhr.addEventListener("load", () => {
+          if (xhr.status === 200) {
+            try {
+              const result = JSON.parse(xhr.responseText)
+              if (result.success) {
+                const uploadResult = {
+                  publicUrl: result.publicUrl,
+                  storagePath: result.storagePath,
+                  fileName: result.fileName,
+                }
+                resolve(uploadResult)
+              } else {
+                reject(new Error(result.error || "Failed to process images"))
+              }
+            } catch (parseError) {
+              reject(new Error("Failed to parse response"))
+            }
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`))
+          }
+        })
+
+        xhr.addEventListener("error", () => {
+          reject(new Error("Upload failed due to network error"))
+        })
+
+        xhr.open("POST", "/api/zip-images")
+        xhr.send(formData)
+      }
+    )
+  }
+
+  return {
+    uploadMultipleImagesWithIP,
+    progress,
+  }
+}
+
+// --- React Client Component ---
 
 export default function TrainModelPage() {
   const router = useRouter()
@@ -107,6 +184,7 @@ export default function TrainModelPage() {
     uploading: datasetUploading,
     progress: datasetProgress,
     uploadFile: uploadDatasetFile,
+    uploadMultipleImages: uploadMultipleImagesFile,
   } = useFileUpload()
   const {
     uploading: previewUploading,
@@ -120,14 +198,7 @@ export default function TrainModelPage() {
     registrationProgress,
   } = useStoryIPRegistration()
 
-  // New pre-signed upload hook
-  const {
-    isUploading: isPresignedUploading,
-    uploadProgress: presignedUploadProgress,
-    error: presignedUploadError,
-    uploadFiles,
-    processUploadedFiles,
-  } = usePresignedUpload()
+  const { uploadMultipleImagesWithIP } = useUploadWithIPRegistration()
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -324,8 +395,12 @@ export default function TrainModelPage() {
         console.log("✅ Preview image uploaded:", previewImageUrl)
       }
 
+      // Upload dataset with progress tracking
+      let datasetUploadResult: { publicUrl: string; storagePath: string; fileName: string }
+      let originalFileName: string
+      let trainingJobId: string | undefined
+
       if (uploadType === "zip" && file) {
-        // Handle ZIP file upload (existing logic)
         console.log("🚀 Uploading ZIP dataset file...")
 
         const uploadResult = await uploadDatasetFile(file, {
@@ -337,48 +412,11 @@ export default function TrainModelPage() {
           },
         })
 
-        // Move to training stage
-        setTrainingProgress((prev) => ({
-          ...prev,
-          stage: "training",
-        }))
-
-        const result = await startTrainingJobOptimized({
-          publicUrl: uploadResult.publicUrl,
-          storagePath: uploadResult.storagePath,
-          originalFileName: fileName,
-          triggerWord: triggerWord || "TOK",
-          captioning: captioning || "automatic",
-          trainingSteps: trainingSteps || "300",
-          previewImageUrl: previewImageUrl,
-          description: description,
-          hasIndividualImages: false,
-          individualImagesCount: 0,
-          userWalletAddress: user?.wallet?.address ?? zeroAddress,
-          ipRegistrationMethod: ipRegistrationMethod,
-        })
-
-        if (result.success && result.jobId) {
-          setTrainingProgress((prev) => ({
-            ...prev,
-            trainingStarted: true,
-          }))
-
-          // Auto-redirect after 5 seconds
-          setTimeout(() => {
-            setIsModalOpen(false)
-            router.push(`/models`)
-          }, 5000)
-        } else {
-          setTrainingProgress((prev) => ({
-            ...prev,
-            error: result.error || "Failed to start training job",
-          }))
-        }
+        datasetUploadResult = uploadResult
+        originalFileName = fileName
+        console.log("✅ ZIP dataset uploaded successfully:", datasetUploadResult.publicUrl)
       } else if (uploadType === "images" && images.length > 0) {
-        // Handle individual images with new pre-signed URL approach
         console.log("🚀 Creating training job for individual images...")
-
         const trainingJobResult = await createTrainingJobForImages({
           triggerWord: triggerWord || "TOK",
           captioning: captioning || "automatic",
@@ -394,137 +432,85 @@ export default function TrainModelPage() {
           throw new Error(trainingJobResult.error || "Failed to create training job")
         }
 
-        const trainingJobId = trainingJobResult.trainingJobId
+        trainingJobId = trainingJobResult.trainingJobId
         console.log(`✅ Training job created with ID: ${trainingJobId}`)
 
+        // Move to registration stage for backend method (all registration happens in API)
         if (ipRegistrationMethod === "backend") {
-          // Use pre-signed URL approach for backend method
           setTrainingProgress((prev) => ({
             ...prev,
-            stage: "upload",
+            stage: "registration",
             registrationProgress: { total: images.length + 1, completed: 0 }, // +1 for ZIP
           }))
 
-          console.log(`🚀 Starting presigned URL upload process for ${images.length} images...`)
-
-          try {
-            // Upload files using pre-signed URLs
-            console.log("📤 Starting file uploads...")
-            const { uploadedFiles, zipFileInfo } = await uploadFiles(
-              images,
-              trainingJobId,
-              (progress) => {
-                console.log(`📊 Upload progress: ${progress}%`)
-                setTrainingProgress((prev) => ({
+          // Simulate progress during upload and registration
+          const progressInterval = setInterval(() => {
+            setTrainingProgress((prev) => {
+              if (
+                prev.registrationProgress &&
+                prev.registrationProgress.completed < images.length
+              ) {
+                return {
                   ...prev,
-                  uploadProgress: progress,
-                }))
-              }
-            )
-
-            console.log(`✅ All files uploaded successfully - ${uploadedFiles.length} files`)
-
-            // Move to registration stage
-            setTrainingProgress((prev) => ({
-              ...prev,
-              stage: "registration",
-              uploadProgress: 100,
-              registrationProgress: { total: images.length + 1, completed: 0 },
-            }))
-
-            console.log("🔐 Starting IP registration and training process...")
-
-            // Start progress simulation for registration with timeout protection
-            let progressCounter = 0
-            const maxProgress = images.length + 1
-
-            const progressInterval = setInterval(() => {
-              progressCounter++
-              setTrainingProgress((prev) => {
-                if (
-                  prev.registrationProgress &&
-                  prev.registrationProgress.completed < images.length
-                ) {
-                  const nextCompleted = Math.min(
-                    prev.registrationProgress.completed + 1,
-                    images.length
-                  )
-                  return {
-                    ...prev,
-                    registrationProgress: {
-                      ...prev.registrationProgress,
-                      completed: nextCompleted,
-                      current:
-                        nextCompleted <= images.length
-                          ? `Registering image ${nextCompleted} of ${images.length}...`
-                          : "Registering ZIP file as IP asset...",
-                    },
-                  }
+                  registrationProgress: {
+                    ...prev.registrationProgress,
+                    completed: Math.min(prev.registrationProgress.completed + 1, images.length),
+                    current: `Registering image ${Math.min(
+                      prev.registrationProgress.completed + 1,
+                      images.length
+                    )} of ${images.length}`,
+                  },
                 }
-                return prev
-              })
-
-              // Prevent infinite progress - clear after reasonable time
-              if (progressCounter > maxProgress + 3) {
-                clearInterval(progressInterval)
-                console.log("⚠️ Progress simulation timeout reached")
               }
-            }, 2500) // Update every 2.5 seconds
+              return prev
+            })
+          }, 2000) // Update every 2 seconds
 
-            // Process uploaded files (IP registration and training start) - this runs in background
-            const result = await processUploadedFiles(trainingJobId, uploadedFiles, zipFileInfo)
+          console.log(`🚀 Uploading ${images.length} images and registering IPs...`)
 
-            // Clear the progress interval
-            clearInterval(progressInterval)
-
-            console.log("🎯 Process result:", result)
-
-            if (result.success) {
-              // Complete registration and move to training
+          const uploadResult = await uploadMultipleImagesWithIP(images, {
+            trainingJobId,
+            onProgress: (progress) => {
               setTrainingProgress((prev) => ({
                 ...prev,
-                stage: "training",
-                registrationProgress: {
-                  total: images.length + 1,
-                  completed: images.length + 1,
-                  current: "IP registration complete",
-                  zipProgress: true,
-                },
-                trainingStarted: true,
+                uploadProgress: progress,
               }))
+            },
+          })
 
-              console.log("✅ Training started successfully!")
+          clearInterval(progressInterval)
 
-              // Auto-redirect after 5 seconds
-              setTimeout(() => {
-                setIsModalOpen(false)
-                router.push(`/models`)
-              }, 5000)
-            } else {
-              setTrainingProgress((prev) => ({
-                ...prev,
-                error: result.error || "Failed to start training",
-              }))
-            }
-          } catch (error) {
-            console.error("❌ Upload/processing error:", error)
+          // Update progress to show ZIP registration
+          setTrainingProgress((prev) => ({
+            ...prev,
+            registrationProgress: {
+              total: images.length + 1,
+              completed: images.length,
+              current: "Registering ZIP file as derivative IP...",
+              zipProgress: true,
+            },
+          }))
 
-            // More detailed error handling
-            let errorMessage = "Upload failed"
-            if (error instanceof Error) {
-              errorMessage = error.message
-              console.error("Error details:", {
-                name: error.name,
-                message: error.message,
-                stack: error.stack,
-              })
-            }
+          // Small delay to show ZIP registration
+          await new Promise((resolve) => setTimeout(resolve, 1000))
 
-            setTrainingProgress((prev) => ({
-              ...prev,
-              error: errorMessage,
-            }))
-          }
+          // Complete registration
+          setTrainingProgress((prev) => ({
+            ...prev,
+            registrationProgress: {
+              total: images.length + 1,
+              completed: images.length + 1,
+              current: "IP registration complete",
+              zipProgress: true,
+            },
+          }))
+
+          datasetUploadResult = uploadResult
+          originalFileName = `${images.length}-images-dataset.zip`
+          console.log(
+            "✅ Images uploaded and IP assets registered successfully:",
+            datasetUploadResult.publicUrl
+          )
         } else {
           // Wallet method - use existing client-side registration
           setTrainingProgress((prev) => ({
@@ -532,18 +518,70 @@ export default function TrainModelPage() {
             stage: "registration",
           }))
 
-          console.log(`🚀 Using wallet method for IP registration...`)
+          console.log(`🚀 Uploading ${images.length} images and creating ZIP...`)
 
-          // This would use the existing uploadMultipleImagesFile and client-side IP registration
-          // For now, show an error as this method is not yet updated for pre-signed URLs
-          setTrainingProgress((prev) => ({
-            ...prev,
-            error:
-              "Wallet method not yet supported with new upload system. Please use backend method.",
-          }))
+          const uploadResult = await uploadMultipleImagesFile(images, {
+            trainingJobId,
+            onProgress: (progress) => {
+              setTrainingProgress((prev) => ({
+                ...prev,
+                uploadProgress: progress,
+              }))
+            },
+          })
+
+          datasetUploadResult = uploadResult
+          originalFileName = `${images.length}-images-dataset.zip`
+
+          // Fetch training images for IP registration
+          const imagesResponse = await fetch(`/api/training-jobs/${trainingJobId}/images`)
+          if (imagesResponse.ok) {
+            const imagesData = await imagesResponse.json()
+            // Register IP assets with progress tracking using user wallet
+            await registerTrainingImages(imagesData.images)
+          }
         }
       } else {
         throw new Error("Invalid upload type or missing files")
+      }
+
+      // Move to training stage
+      setTrainingProgress((prev) => ({
+        ...prev,
+        stage: "training",
+      }))
+
+      const result = await startTrainingJobOptimized({
+        publicUrl: datasetUploadResult.publicUrl,
+        storagePath: datasetUploadResult.storagePath,
+        originalFileName: originalFileName,
+        triggerWord: triggerWord || "TOK",
+        captioning: captioning || "automatic",
+        trainingSteps: trainingSteps || "300",
+        previewImageUrl: previewImageUrl,
+        description: description,
+        hasIndividualImages: uploadType === "images",
+        individualImagesCount: uploadType === "images" ? images.length : 0,
+        userWalletAddress: user?.wallet?.address ?? zeroAddress,
+        ipRegistrationMethod: ipRegistrationMethod,
+      })
+
+      if (result.success && result.jobId) {
+        setTrainingProgress((prev) => ({
+          ...prev,
+          trainingStarted: true,
+        }))
+
+        // Auto-redirect after 5 seconds
+        setTimeout(() => {
+          setIsModalOpen(false)
+          router.push(`/models`)
+        }, 5000)
+      } else {
+        setTrainingProgress((prev) => ({
+          ...prev,
+          error: result.error || "Failed to start training job",
+        }))
       }
     } catch (error) {
       setTrainingProgress((prev) => ({
@@ -590,9 +628,9 @@ export default function TrainModelPage() {
                 will not be shared.
               </li>
               <li>
-                As part of our commitment to creator rights, your images will be registered as
-                Intellectual Property on the <strong>Story blockchain</strong>. This creates a
-                verifiable, on-chain link between you and your dataset.
+                As part of our commitment to creator rights, a hash of your images will be
+                registered as Intellectual Property on the <strong>Story blockchain</strong>. This
+                creates a verifiable, on-chain link between you and your dataset.
               </li>
             </ul>
           </div>
@@ -992,7 +1030,7 @@ export default function TrainModelPage() {
                               <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="wallet" id="wallet" />
                                 <Label htmlFor="wallet" className="text-sm font-normal">
-                                  Register IP with connected wallet (coming soon)
+                                  Register IP with connected wallet
                                 </Label>
                               </div>
                             </RadioGroup>
