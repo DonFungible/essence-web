@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { PromptBar } from "@/components/prompt-bar"
 import { Toaster } from "@/components/ui/sonner"
-import { QueryProvider } from "@/components/query-provider"
+import Web3Provider from "@/components/web3-provider"
 import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = {
@@ -24,11 +24,11 @@ export default function RootLayout({
           "bg-background text-foreground" // Your existing background/text colors
         )}
       >
-        <QueryProvider>
+        <Web3Provider>
           <main className="relative pb-32">{children}</main>
           <PromptBar />
           <Toaster />
-        </QueryProvider>
+        </Web3Provider>
       </body>
     </html>
   )

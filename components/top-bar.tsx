@@ -1,6 +1,7 @@
 import { Search, Command, Filter, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { WalletConnect } from "@/components/wallet-connect"
 // Removed Link, Avatar, DropdownMenu, createClient, signOut, UserCircle, Settings, LogOut
 
 export function TopBar() {
@@ -22,13 +23,7 @@ export function TopBar() {
         </div>
       </div>
       <div className="flex items-center space-x-3">
-        <Button variant="ghost" size="icon" className="text-slate-500 hover:bg-slate-100">
-          <Filter className="w-5 h-5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="text-slate-500 hover:bg-slate-100 relative">
-          <Zap className="w-5 h-5" />
-          {/* Removed badge that indicated user-specific notifications */}
-        </Button>
+        <WalletConnect />
         {/* Removed user avatar, dropdown menu, and login button */}
       </div>
     </div>
