@@ -137,15 +137,6 @@ export default function TrainingModelCard({
               {description && <p className="text-xs text-slate-600 line-clamp-2">{description}</p>}
 
               <div className="flex items-center justify-between text-xs text-slate-500">
-                <div className="flex items-center gap-3">
-                  {trainingSteps && (
-                    <span className="flex items-center gap-1">
-                      <Cpu className="w-3 h-3" />
-                      {trainingSteps} steps
-                    </span>
-                  )}
-                  {captioning && <span className="truncate">{captioning}</span>}
-                </div>
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   {formatTimeAgo(createdAt)}

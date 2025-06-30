@@ -2,7 +2,12 @@ import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import Replicate from "replicate"
-import { mintAndRegisterIP, isStoryConfigured, getSPGNftContract } from "@/lib/story-protocol"
+import {
+  mintAndRegisterIP,
+  mintAndRegisterIpWithPilTerms,
+  isStoryConfigured,
+  getSPGNftContract,
+} from "@/lib/story-protocol"
 
 // Validate environment variables
 function validateEnvironment() {
@@ -156,8 +161,9 @@ export async function POST(req: NextRequest) {
               ipMetadata.description = nftDescription.trim()
             }
             console.log({ spgContract })
+            // Use PIL terms registration for training images to enable derivative relationships
             const ipResult = await withRetry(async () => {
-              return await mintAndRegisterIP({
+              return await mintAndRegisterIpWithPilTerms({
                 spgNftContract: spgContract,
                 metadata: ipMetadata,
               })

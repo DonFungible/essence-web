@@ -276,7 +276,79 @@ export async function registerDerivativeIP(params: RegisterDerivativeParams) {
 }
 
 /**
- * Mint an NFT and register it as an IP Asset
+ * Mint an NFT and register it as an IP Asset with license terms attached
+ *
+ * This ensures training images have license terms attached, enabling derivative registration.
+ * Uses a two-step process: register IP first, then attach license terms.
+ */
+export async function mintAndRegisterIpWithPilTerms(params: {
+  spgNftContract: string
+  metadata: IPMetadata
+  recipient?: string
+}) {
+  try {
+    const client = getStoryClient()
+
+    console.log(`[STORY] Minting and registering IP Asset with license terms (two-step process)`)
+
+    // Step 1: Register the IP asset
+    const ipResult = await mintAndRegisterIP(params)
+
+    if (!ipResult.success) {
+      return ipResult
+    }
+
+    console.log(`[STORY] Step 1 complete - IP registered: ${ipResult.ipId}`)
+
+    // Step 2: Attach license terms to the newly registered IP
+    console.log(`[STORY] Step 2 - Attaching license terms to IP: ${ipResult.ipId}`)
+
+    try {
+      const licenseResponse = await withRetry(async () => {
+        return await client.license.attachLicenseTerms({
+          ipId: ipResult.ipId as `0x${string}`,
+          licenseTermsId: BigInt(1), // Use default commercial license terms
+        })
+      })
+
+      console.log(
+        `[STORY] IP Asset registered with license terms: ${ipResult.ipId} (license tx: ${licenseResponse.txHash})`
+      )
+
+      return {
+        success: true,
+        ipId: ipResult.ipId,
+        tokenId: ipResult.tokenId?.toString(),
+        txHash: ipResult.txHash,
+        licenseTxHash: licenseResponse.txHash,
+      }
+    } catch (licenseError) {
+      console.error(`[STORY] Failed to attach license terms to ${ipResult.ipId}:`, licenseError)
+
+      // Return the IP registration result even if license attachment failed
+      // The IP exists, just without explicit license terms
+      return {
+        success: true,
+        ipId: ipResult.ipId,
+        tokenId: ipResult.tokenId?.toString(),
+        txHash: ipResult.txHash,
+        licenseError:
+          licenseError instanceof Error ? licenseError.message : "License attachment failed",
+      }
+    }
+  } catch (error) {
+    console.error("[STORY] Error minting and registering IP Asset with PIL terms:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+}
+
+/**
+ * Mint an NFT and register it as an IP Asset (legacy method)
+ *
+ * @deprecated Use mintAndRegisterIpAndAttachPilTerms for training images to ensure license terms
  */
 export async function mintAndRegisterIP(params: {
   spgNftContract: string
@@ -314,11 +386,13 @@ export async function mintAndRegisterIP(params: {
       `[STORY] IP Asset minted and registered: ${response.ipId} (token: ${response.tokenId}, tx: ${response.txHash})`
     )
 
+    const serializedResponse = serializeBigIntResponse(response)
+
     return {
       success: true,
-      ipId: response.ipId,
-      tokenId: response.tokenId,
-      txHash: response.txHash,
+      ipId: serializedResponse.ipId,
+      tokenId: serializedResponse.tokenId,
+      txHash: serializedResponse.txHash,
     }
   } catch (error) {
     console.error("[STORY] Error minting and registering IP Asset:", error)
@@ -326,6 +400,17 @@ export async function mintAndRegisterIP(params: {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
     }
+  }
+}
+
+/**
+ * Convert BigInt values to strings for JSON serialization
+ */
+export function serializeBigIntResponse(response: any) {
+  return {
+    ...response,
+    tokenId: response.tokenId?.toString(),
+    licenseTermsIds: response.licenseTermsIds?.map((id: bigint) => id.toString()),
   }
 }
 
@@ -423,11 +508,81 @@ export async function mintAndRegisterDerivativeWithLicenseTokens(params: {
       `[STORY] Derivative IP minted and registered: ${response.ipId} (token: ${response.tokenId}, tx: ${response.txHash})`
     )
 
+    const serializedResponse = serializeBigIntResponse(response)
+
     return {
       success: true,
-      ipId: response.ipId,
-      tokenId: response.tokenId,
-      txHash: response.txHash,
+      ipId: serializedResponse.ipId,
+      tokenId: serializedResponse.tokenId,
+      txHash: serializedResponse.txHash,
+    }
+  } catch (error) {
+    console.error("[STORY] Error minting and registering derivative IP:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+}
+
+/**
+ * Mint NFT and register as derivative IP using license terms (primary method for AI models)
+ *
+ * This is the primary method for registering AI models as derivatives of training images.
+ * It works directly with parent IP IDs and license terms, avoiding license token complexity.
+ * All AI models should use this method to establish proper derivative relationships.
+ */
+export async function mintAndRegisterIpAndMakeDerivative(params: {
+  spgNftContract: string
+  parentIpIds: string[]
+  licenseTermsId: string
+  metadata: IPMetadata
+  recipient?: string
+}) {
+  try {
+    const client = getStoryClient()
+
+    // Create metadata URI
+    const metadataJSON = JSON.stringify(params.metadata)
+    const metadataURI = `data:application/json;base64,${Buffer.from(metadataJSON).toString(
+      "base64"
+    )}`
+
+    // Generate proper 32-byte hash of the metadata
+    const metadataHash = keccak256(stringToBytes(metadataJSON))
+
+    console.log(
+      `[STORY] Minting and registering derivative IP for ${params.parentIpIds.length} parent IPs`
+    )
+
+    const response = await withRetry(async () => {
+      return await client.ipAsset.mintAndRegisterIpAndMakeDerivative({
+        spgNftContract: params.spgNftContract as `0x${string}`,
+        derivData: {
+          parentIpIds: params.parentIpIds as `0x${string}`[],
+          licenseTermsIds: params.parentIpIds.map(() => BigInt(params.licenseTermsId)),
+        },
+        ipMetadata: {
+          ipMetadataURI: metadataURI,
+          ipMetadataHash: metadataHash,
+          nftMetadataURI: metadataURI,
+          nftMetadataHash: metadataHash,
+        },
+        recipient: params.recipient as `0x${string}` | undefined,
+      })
+    })
+
+    console.log(
+      `[STORY] Derivative IP minted and registered: ${response.ipId} (token: ${response.tokenId}, tx: ${response.txHash})`
+    )
+
+    const serializedResponse = serializeBigIntResponse(response)
+
+    return {
+      success: true,
+      ipId: serializedResponse.ipId,
+      tokenId: serializedResponse.tokenId,
+      txHash: serializedResponse.txHash,
     }
   } catch (error) {
     console.error("[STORY] Error minting and registering derivative IP:", error)
