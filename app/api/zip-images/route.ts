@@ -527,33 +527,32 @@ export async function POST(req: NextRequest) {
     // Get public URL for ZIP
     const { data: urlData } = supabase.storage.from("models").getPublicUrl(finalZipPath)
 
-    // Step 7: ZIP file is created but NOT registered as IP
-    // Per Story Protocol best practices, the ZIP file is just a container
-    // The trained model will be registered as a derivative of the training images
-    console.log(`\n📦 ZIP file created successfully (${zipSizeMB}MB)`)
-    console.log(
-      `📝 Note: ZIP file is not registered as IP - only training images and final model are IP assets`
-    )
+    // Step 8: Update training job with parent IP relationships
+    console.log(`\n💾 Updating training job with parent IP relationships...`)
 
-    // Step 8: Update training job with ZIP information
-    console.log(`\n💾 Updating training job with ZIP information...`)
+    const updateData: any = {}
 
-    const { error: updateError } = await supabase
-      .from("training_jobs")
-      .update({
-        zip_file_url: urlData.publicUrl,
-        zip_file_path: finalZipPath,
-        processing_status: "uploading_complete",
-        story_parent_ip_ids: parentIpIds.length > 0 ? parentIpIds : null,
-      })
-      .eq("id", trainingJobId)
-
-    if (updateError) {
-      console.error("Error updating training job:", updateError)
-      return NextResponse.json({ error: "Failed to update training job" }, { status: 500 })
+    // Store parent IP IDs for later derivative registration (when model training completes)
+    if (parentIpIds.length > 0) {
+      updateData.story_parent_ip_ids = parentIpIds
     }
 
-    console.log(`✅ Updated training job with ZIP info and ${parentIpIds.length} parent IP IDs`)
+    // Only update if we have data to update
+    if (Object.keys(updateData).length > 0) {
+      const { error: updateError } = await supabase
+        .from("training_jobs")
+        .update(updateData)
+        .eq("id", trainingJobId)
+
+      if (updateError) {
+        console.error("Error updating training job:", updateError)
+        return NextResponse.json({ error: "Failed to update training job" }, { status: 500 })
+      }
+
+      console.log(`✅ Updated training job with ${parentIpIds.length} parent IP IDs`)
+    } else {
+      console.log(`📝 No parent IP relationships to store for training job ${trainingJobId}`)
+    }
 
     // Step 9: Start Replicate training
     console.log(`\n🚀 Starting Replicate training...`)
@@ -590,7 +589,6 @@ export async function POST(req: NextRequest) {
         .from("training_jobs")
         .update({
           replicate_job_id: replicateData.id,
-          processing_status: "training",
         })
         .eq("id", trainingJobId)
 
@@ -621,7 +619,6 @@ export async function POST(req: NextRequest) {
       await supabase
         .from("training_jobs")
         .update({
-          processing_status: "failed",
           error_message: `Failed to start Replicate training: ${
             error instanceof Error ? error.message : "Unknown error"
           }`,

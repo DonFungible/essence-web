@@ -9,6 +9,7 @@ function validateEnvironment() {
   const required = {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    REPLICATE_API_TOKEN: process.env.REPLICATE_API_TOKEN,
   }
 
   const missing = Object.entries(required)
@@ -98,16 +99,6 @@ export async function POST(req: NextRequest) {
 
     console.log(`🔐 IP Registration method: ${ipMethod}`)
     console.log(`📋 Story Protocol configured: ${isStoryConfigured()}`)
-
-    // Update training job status (only if column exists)
-    try {
-      await supabase
-        .from("training_jobs")
-        .update({ processing_status: "uploading_complete" })
-        .eq("id", trainingJobId)
-    } catch (error) {
-      console.log("⚠️ Processing status column not available yet:", error)
-    }
 
     // Process uploaded files and register as IP assets
     const imageRecords: any[] = []
@@ -243,15 +234,15 @@ export async function POST(req: NextRequest) {
     // Per Story Protocol best practices: ZIP files are just containers, not IP assets
     // Only individual training images and the final trained model are registered as IP assets
     console.log(`\n📦 Note: ZIP file is created for training purposes only`)
-    console.log(`📝 IP Asset registration: Training images ✅, ZIP file ❌, Model (later via webhook) ✅`)
+    console.log(
+      `📝 IP Asset registration: Training images ✅, ZIP file ❌, Model (later via webhook) ✅`
+    )
 
     // Update training job with processing completion
-    console.log(`\n💾 Updating training job with processing status...`)
+    console.log(`\n💾 Updating training job with parent IP relationships...`)
 
-    // Prepare update data - only update processing status and parent IP relationships
-    const updateData: any = {
-      processing_status: "uploading_complete",
-    }
+    // Prepare update data - only update parent IP relationships
+    const updateData: any = {}
 
     // Store parent IP IDs for later derivative registration (when model training completes)
     if (parentIpIds.length > 0) {
@@ -259,26 +250,144 @@ export async function POST(req: NextRequest) {
       console.log(`📝 Stored ${parentIpIds.length} parent IP IDs for future model registration`)
     }
 
-    const { error: updateError } = await supabase
-      .from("training_jobs")
-      .update(updateData)
-      .eq("id", trainingJobId)
+    // Only update if we have data to update
+    if (Object.keys(updateData).length > 0) {
+      const { error: updateError } = await supabase
+        .from("training_jobs")
+        .update(updateData)
+        .eq("id", trainingJobId)
 
-    if (updateError) {
-      console.error("Error updating training job:", updateError)
-      return NextResponse.json({ error: "Failed to update training job" }, { status: 500 })
+      if (updateError) {
+        console.error("Error updating training job:", updateError)
+        return NextResponse.json({ error: "Failed to update training job" }, { status: 500 })
+      }
+
+      console.log(`✅ Updated training job with ${parentIpIds.length} parent IP IDs`)
+    } else {
+      console.log(`📝 No parent IP relationships to store for training job ${trainingJobId}`)
     }
 
-    console.log(`✅ Updated training job ${trainingJobId} - ready for training`)
+    // Step 4: Submit training to Replicate
+    console.log(`\n🚀 Starting Replicate training submission...`)
 
-    return NextResponse.json({
-      success: true,
-      message: "Files processed and training images registered as IP assets",
-      processedImages: imageRecords.length,
-      registeredIPs: parentIpIds.length,
-      parentIpIds: parentIpIds,
-      note: "ZIP file created but not registered as IP asset - only training images and final model are IP assets",
-    })
+    try {
+      // Get the training job details for trigger word
+      const { data: jobDetails, error: jobDetailsError } = await supabase
+        .from("training_jobs")
+        .select("trigger_word, training_steps, captioning")
+        .eq("id", trainingJobId)
+        .single()
+
+      if (jobDetailsError || !jobDetails) {
+        console.error("Error fetching training job details:", jobDetailsError)
+        return NextResponse.json(
+          { error: "Training job not found for submission" },
+          { status: 404 }
+        )
+      }
+
+      console.log(`📝 Training parameters:`, {
+        trigger_word: jobDetails.trigger_word,
+        training_steps: jobDetails.training_steps,
+        captioning: jobDetails.captioning,
+        input_images: zipFileInfo.publicUrl,
+      })
+
+      // Initialize Replicate client
+      const replicate = new Replicate({
+        auth: process.env.REPLICATE_API_TOKEN!,
+      })
+
+      // Determine webhook URL
+      let webhookUrl: string
+      const tunnelUrl = process.env.REPLICATE_WEBHOOK_TUNNEL_URL
+      if (process.env.NODE_ENV === "development" && tunnelUrl) {
+        webhookUrl = `${tunnelUrl}/api/replicate-webhook`
+      } else {
+        webhookUrl = `${process.env.WEBHOOK_HOST}/api/replicate-webhook`
+      }
+
+      console.log(`🔗 Using webhook URL: ${webhookUrl}`)
+
+      // Prepare training input data
+      const trainingInput = {
+        input_images: zipFileInfo.publicUrl,
+        trigger_word: jobDetails.trigger_word || "TOK",
+        training_steps: jobDetails.training_steps || 300,
+        captioning: jobDetails.captioning || "automatic",
+        mode: "style" as const,
+        lora_rank: 16,
+        finetune_type: "lora" as const,
+      }
+
+      console.log(`📋 Submitting to Replicate with input:`, trainingInput)
+
+      // Submit to Replicate using predictions API
+      const prediction = await replicate.predictions.create({
+        model: "black-forest-labs/flux-pro-trainer",
+        input: trainingInput,
+        webhook: webhookUrl,
+        webhook_events_filter: ["start", "output", "logs", "completed"],
+      })
+
+      console.log(`✅ Replicate prediction created: ${prediction.id}`)
+
+      // Update training job with Replicate information and change status to 'starting'
+      const { error: replicateUpdateError } = await supabase
+        .from("training_jobs")
+        .update({
+          replicate_job_id: prediction.id,
+          status: prediction.status, // Use the status returned by Replicate
+          input_images_url: zipFileInfo.publicUrl,
+        })
+        .eq("id", trainingJobId)
+
+      if (replicateUpdateError) {
+        console.error("Error updating training job with Replicate ID:", replicateUpdateError)
+        return NextResponse.json(
+          { error: "Failed to update training job with Replicate ID" },
+          { status: 500 }
+        )
+      }
+
+      console.log(`🎉 Training process completed successfully!`)
+      console.log(`📊 Summary:`)
+      console.log(`   - Images processed: ${uploadedFiles.length}`)
+      console.log(`   - IP assets registered: ${parentIpIds.length}`)
+      console.log(`   - Replicate prediction ID: ${prediction.id}`)
+      console.log(`   - Status: preparing → ${prediction.status}`)
+
+      return NextResponse.json({
+        success: true,
+        message: "Training started successfully",
+        trainingJobId,
+        replicateJobId: prediction.id,
+        imageCount: uploadedFiles.length,
+        ipAssetsRegistered: parentIpIds.length,
+        status: prediction.status,
+      })
+    } catch (error) {
+      console.error("Error starting Replicate training:", error)
+
+      // Update status to indicate Replicate failure
+      await supabase
+        .from("training_jobs")
+        .update({
+          status: "failed",
+          error_message: `Failed to start Replicate training: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
+        })
+        .eq("id", trainingJobId)
+
+      return NextResponse.json(
+        {
+          error: "Failed to start training",
+          details: error instanceof Error ? error.message : "Unknown error occurred",
+        },
+        { status: 500 }
+      )
+    }
   } catch (error) {
     console.error("Process uploaded files error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

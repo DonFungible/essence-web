@@ -84,6 +84,8 @@ export default function TrainingModelCard({
 
   const getStatusDisplay = (status: string) => {
     switch (status) {
+      case "preparing":
+        return { label: "Preparing", variant: "outline" as const, icon: Clock }
       case "pending":
       case "queued":
       case "submitted":

@@ -772,8 +772,7 @@ export default function TrainModelPage() {
                 <CardHeader>
                   <CardTitle>Train a New Style Model</CardTitle>
                   <CardDescription>
-                    Upload your dataset as a .zip file (up to 2GB) or select multiple images
-                    (minimum 5, max 10MB each).
+                    Select multiple images to train your custom AI model (minimum 5, max 10MB each).
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -787,7 +786,7 @@ export default function TrainModelPage() {
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
                       <p className="text-xs text-slate-500 text-center">
-                        ZIP file (up to 2GB) or multiple images (JPG, PNG, WEBP, GIF)
+                        Multiple images (JPG, PNG, WEBP, GIF)
                         <br />
                         Minimum 5 images required • Maximum 10MB per image
                       </p>
@@ -796,7 +795,7 @@ export default function TrainModelPage() {
                       id="file-upload"
                       type="file"
                       className="hidden"
-                      accept=".zip,image/jpeg,image/png,image/webp,image/gif"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
                       multiple
                       onChange={handleFileChange}
                     />
