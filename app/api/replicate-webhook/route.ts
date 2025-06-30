@@ -1,7 +1,13 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { mintAndRegisterIP, isStoryConfigured, getSPGNftContract } from "@/lib/story-protocol"
+import {
+  mintAndRegisterIP,
+  isStoryConfigured,
+  getSPGNftContract,
+  mintLicenseTokens,
+  mintAndRegisterDerivativeWithLicenseTokens,
+} from "@/lib/story-protocol"
 
 // Import the extraction function directly
 async function extractStyleImages(
@@ -592,24 +598,89 @@ async function registerTrainedModelAsIP(
 
     const spgContract = getSPGNftContract()
 
-    // Register the model as an IP asset
-    console.log(`📝 Registering model IP asset for: ${triggerWord}`)
-    const modelResult = await mintAndRegisterIP({
-      spgNftContract: spgContract,
-      metadata: modelMetadata,
-    })
+    let modelResult: any
+    let derivativeTxHash: string | null = null
+
+    // If we have registered training image IPs, register as derivative
+    if (registeredImageIPs.length > 0) {
+      console.log(
+        `📝 Registering model as derivative IP of ${registeredImageIPs.length} training images`
+      )
+
+      try {
+        // Step 1: Mint license tokens for each parent IP
+        const licenseTokenIds: string[] = []
+
+        for (const parentIpId of registeredImageIPs) {
+          console.log(`🎫 Minting license token for parent IP: ${parentIpId}`)
+
+          const licenseResult = await mintLicenseTokens({
+            licensorIpId: parentIpId,
+            licenseTermsId: "1", // Use default license terms
+            amount: 1,
+            maxMintingFee: "0",
+            maxRevenueShare: 0,
+          })
+
+          if (licenseResult.success && licenseResult.licenseTokenIds.length > 0) {
+            // Convert bigint to string for license token IDs
+            const tokenIds = licenseResult.licenseTokenIds.map((id) => id.toString())
+            licenseTokenIds.push(...tokenIds)
+            console.log(`✅ License token minted: ${tokenIds.join(", ")}`)
+          } else {
+            console.error(`❌ Failed to mint license token for ${parentIpId}:`, licenseResult.error)
+          }
+        }
+
+        if (licenseTokenIds.length > 0) {
+          // Step 2: Register model as derivative using license tokens
+          console.log(`🔗 Registering derivative IP with ${licenseTokenIds.length} license tokens`)
+
+          modelResult = await mintAndRegisterDerivativeWithLicenseTokens({
+            spgNftContract: spgContract,
+            licenseTokenIds,
+            metadata: modelMetadata,
+          })
+
+          if (modelResult.success) {
+            derivativeTxHash = modelResult.txHash
+            console.log(`✅ Registered model as derivative IP: ${modelResult.ipId}`)
+          } else {
+            console.error(`❌ Failed to register derivative IP:`, modelResult.error)
+            // Fall back to standalone registration
+            console.log(`🔄 Falling back to standalone IP registration...`)
+            modelResult = await mintAndRegisterIP({
+              spgNftContract: spgContract,
+              metadata: modelMetadata,
+            })
+          }
+        } else {
+          console.log(`⚠️ No license tokens available, falling back to standalone registration`)
+          modelResult = await mintAndRegisterIP({
+            spgNftContract: spgContract,
+            metadata: modelMetadata,
+          })
+        }
+      } catch (error) {
+        console.error(`❌ Error in derivative registration:`, error)
+        console.log(`🔄 Falling back to standalone IP registration...`)
+        modelResult = await mintAndRegisterIP({
+          spgNftContract: spgContract,
+          metadata: modelMetadata,
+        })
+      }
+    } else {
+      // No parent IPs, register as standalone
+      console.log(`📝 No registered training images found, registering model as standalone IP`)
+      modelResult = await mintAndRegisterIP({
+        spgNftContract: spgContract,
+        metadata: modelMetadata,
+      })
+    }
 
     if (!modelResult.success) {
       console.error(`❌ Failed to register model IP:`, modelResult.error)
-
-      // Update job with failed status
-      await supabase
-        .from("training_jobs")
-        .update({
-          story_model_registration_status: "failed",
-        })
-        .eq("replicate_job_id", replicateJobId)
-
+      console.log(`❌ IP registration failed for job ${replicateJobId} - ip_id will remain null`)
       return
     }
 
@@ -617,18 +688,20 @@ async function registerTrainedModelAsIP(
 
     // Update training job with model IP information
     const updateData: any = {
-      story_model_ip_id: modelResult.ipId,
-      story_model_nft_contract: spgContract,
-      story_model_token_id: modelResult.tokenId?.toString(),
+      ip_id: modelResult.ipId,
       story_model_tx_hash: modelResult.txHash,
-      story_model_registration_status: "registered",
     }
 
-    // If we have registered training image IPs, store them as parent IPs
+    // Store parent IPs and derivative transaction if applicable
     if (registeredImageIPs.length > 0) {
       updateData.story_parent_ip_ids = registeredImageIPs
+      if (derivativeTxHash) {
+        updateData.story_derivative_tx_hash = derivativeTxHash
+      }
       console.log(
-        `📝 Stored ${registeredImageIPs.length} parent IP IDs for derivative relationship`
+        `📝 Stored ${registeredImageIPs.length} parent IP IDs ${
+          derivativeTxHash ? "with derivative relationship" : "for reference"
+        }`
       )
     }
 
@@ -642,24 +715,10 @@ async function registerTrainedModelAsIP(
     } else {
       console.log(`✅ Updated training job ${replicateJobId} with model IP: ${modelResult.ipId}`)
     }
-
-    // TODO: Implement derivative registration when Story Protocol supports it
-    // For now, we're just registering the model as an independent IP asset
-    // In the future, we could register it as a derivative of the training images
-    // using registerDerivativeIP once license tokens are properly set up
   } catch (error) {
     console.error("❌ Error in registerTrainedModelAsIP:", error)
 
-    // Update job with failed status
-    try {
-      await supabase
-        .from("training_jobs")
-        .update({
-          story_model_registration_status: "failed",
-        })
-        .eq("replicate_job_id", replicateJobId)
-    } catch (updateError) {
-      console.error("❌ Error updating failed status:", updateError)
-    }
+    // Update job with failed status - IP registration failed, so ip_id remains null
+    console.log("❌ IP registration failed - ip_id will remain null for this training job")
   }
 }

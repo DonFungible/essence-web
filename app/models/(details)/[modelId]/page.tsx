@@ -1,6 +1,9 @@
+"use client"
+
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowLeft, Cpu, Palette } from "lucide-react"
+import { ArrowLeft, Cpu, Palette, Copy, ExternalLink } from "lucide-react"
+import { useEffect, useState } from "react"
 
 import ModelClientContent from "./model-client-content"
 import StyleReferenceGrid from "./style-reference-grid"
@@ -8,8 +11,8 @@ import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
 import { Button } from "@/components/ui/button"
 import EditableDescription from "@/components/editable-description"
-import { getModelById, type ModelType } from "@/lib/models-data"
-import { getStyleReferenceImages } from "@/lib/style-reference-images"
+import { type ModelType } from "@/lib/models-data"
+import { useToast } from "@/hooks/use-toast"
 
 interface Props {
   params: {
@@ -17,27 +20,87 @@ interface Props {
   }
 }
 
-// --- fetch model (static list first, then DB) ---
-async function findModelById(id: string): Promise<ModelType | null> {
-  const staticModel = getModelById(id)
-  if (staticModel) return staticModel
+export default function ModelPage({ params }: Props) {
+  const { toast } = useToast()
+  const [model, setModel] = useState<ModelType | null>(null)
+  const [styleReferenceImages, setStyleReferenceImages] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [modelId, setModelId] = useState<string>("")
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const resolvedParams = await params
+        setModelId(resolvedParams.modelId)
 
-  try {
-    const { getTrainedModelsFromDatabase } = await import("@/lib/server-models")
-    const trained = await getTrainedModelsFromDatabase()
-    return trained.find((m) => m.id === id) || null
-  } catch (err) {
-    console.error("Error loading DB models:", err)
-    return null
+        // Fetch model data from API
+        const modelResponse = await fetch(`/api/models/${resolvedParams.modelId}`)
+        if (modelResponse.ok) {
+          console.log("modelResponse", modelResponse)
+          const { data: foundModel } = await modelResponse.json()
+          setModel(foundModel)
+
+          if (foundModel) {
+            // Fetch style reference images from API
+            const imagesResponse = await fetch(`/api/models/${resolvedParams.modelId}/style-images`)
+            if (imagesResponse.ok) {
+              const { images } = await imagesResponse.json()
+              setStyleReferenceImages(images || [])
+            } else {
+              console.error(
+                "Failed to fetch style images:",
+                imagesResponse.status,
+                imagesResponse.statusText
+              )
+              setStyleReferenceImages([])
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading model data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [params])
+
+  const handleCopyIpId = async () => {
+    if (model?.ipId) {
+      try {
+        await navigator.clipboard.writeText(model.ipId)
+        toast({
+          title: "IP Asset ID Copied",
+          description: "The IP Asset ID has been copied to your clipboard.",
+        })
+      } catch (error) {
+        toast({
+          title: "Copy Failed",
+          description: "Failed to copy IP Asset ID to clipboard.",
+          variant: "destructive",
+        })
+      }
+    }
   }
-}
+  console.log({ model })
 
-export default async function ModelPage({ params }: Props) {
-  const { modelId } = await params
-  const model = await findModelById(modelId)
+  // For now, assume all models are database models (can be edited)
+  // This could be enhanced to check if the model is from the static list
+  const isStaticModel = false
 
-  // Determine if this is a static model (can't be edited) or database model (can be edited)
-  const isStaticModel = !!getModelById(modelId)
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-slate-100">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <TopBar />
+          <main className="flex-1 flex flex-col items-center justify-center text-center p-6">
+            <div className="text-lg text-slate-600">Loading model...</div>
+          </main>
+        </div>
+      </div>
+    )
+  }
 
   if (!model) {
     return (
@@ -57,9 +120,6 @@ export default async function ModelPage({ params }: Props) {
       </div>
     )
   }
-
-  // Fetch style reference images from Supabase storage bucket
-  const styleReferenceImages = await getStyleReferenceImages(model.name)
 
   return (
     <div className="flex h-screen bg-slate-100">
@@ -83,6 +143,44 @@ export default async function ModelPage({ params }: Props) {
                 <Cpu className="mr-3 h-8 w-8 text-slate-600" />
                 <h1 className="text-3xl font-bold tracking-tight">{model.name}</h1>
               </div>
+
+              {/* IP Asset ID Section */}
+              {model.ipId && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center">
+                    <Palette className="w-4 h-4 mr-2" />
+                    IP Asset ID
+                  </h3>
+                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg border">
+                    <code className="text-sm font-mono text-slate-700 bg-white px-2 py-1 rounded border flex-1">
+                      {model.ipId}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyIpId}
+                      className="flex items-center gap-2"
+                    >
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </Button>
+                    <Button variant="outline" size="sm" asChild className="flex items-center gap-2">
+                      <Link
+                        href={`https://aeneid.explorer.story.foundation/ipa/${model.ipId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        View on Story Explorer
+                      </Link>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    This AI model is registered as an IP asset on Story Protocol, representing the
+                    intellectual property rights of the trained model.
+                  </p>
+                </div>
+              )}
 
               {/* Editable Description */}
               <div className="max-w-2xl">

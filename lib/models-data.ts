@@ -13,6 +13,7 @@ export interface DatabaseModel {
   created_at?: string
   preview_image_url?: string | null // Public URL from Supabase Storage
   description?: string | null
+  ip_id?: string | null // Story Protocol IP Asset ID (consolidated)
 }
 
 export type ModelType = {
@@ -34,6 +35,7 @@ export type ModelType = {
   status?: string | null
   outputModelUrl?: string | null // Direct URL to the replicate output model zip
   createdAt?: string // ISO timestamp string
+  ipId?: string | null // Story Protocol IP Asset ID
 }
 
 /* ------------------------------------------------------------------
@@ -83,5 +85,6 @@ export function transformDbModelToUIModel(dbModel: DatabaseModel): ModelType {
     status: dbModel.status,
     outputModelUrl: dbModel.output_model_url,
     createdAt: dbModel.created_at,
+    ipId: dbModel.ip_id,
   }
 }

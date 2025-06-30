@@ -32,7 +32,8 @@ export async function getTrainedModelsFromDatabase(): Promise<ModelType[]> {
   captioning,
   created_at,
   preview_image_url, 
-  description 
+  description,
+  ip_id
 `
       )
       .eq("status", "succeeded")
@@ -80,7 +81,8 @@ export async function getTrainingModelsFromDatabase(): Promise<ModelType[]> {
         training_steps,
         captioning,
         preview_image_url, 
-        description 
+        description,
+        ip_id
       `
       )
       .in("status", ["starting", "processing"])

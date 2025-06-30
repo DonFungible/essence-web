@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
   try {
     validateEnvironment()
 
-    const { trainingJobId, uploadedFiles, zipFileInfo } = await req.json()
+    const { trainingJobId, uploadedFiles, zipFileInfo, metadata } = await req.json()
 
     if (!trainingJobId) {
       return NextResponse.json({ error: "Training job ID is required" }, { status: 400 })
@@ -138,22 +138,37 @@ export async function POST(req: NextRequest) {
           console.log(`🔐 Registering IP asset on Story Protocol...`)
 
           try {
-            const metadata = {
-              title: `Training Image: ${fileInfo.originalName}`,
-              description: `Training image used for AI model development. Original filename: ${fileInfo.originalName}`,
+            // Get custom metadata if provided
+            const customMeta = metadata?.[i]
+            const nftName = customMeta?.name || fileInfo.originalName
+            const nftDescription = customMeta?.description
+
+            // Build metadata object
+            const ipMetadata: any = {
+              title: nftName,
               ipType: "image" as const,
+              image: fileInfo.publicUrl,
               attributes: [
                 {
                   trait_type: "File Type",
                   value: fileInfo.contentType,
                 },
+                {
+                  trait_type: "Original Filename",
+                  value: fileInfo.originalName,
+                },
               ],
+            }
+
+            // Only include description if it exists and is not empty
+            if (nftDescription && nftDescription.trim() !== "") {
+              ipMetadata.description = nftDescription.trim()
             }
             console.log({ spgContract })
             const ipResult = await withRetry(async () => {
               return await mintAndRegisterIP({
                 spgNftContract: spgContract,
-                metadata,
+                metadata: ipMetadata,
               })
             })
 
@@ -224,232 +239,48 @@ export async function POST(req: NextRequest) {
 
     console.log(`✅ Successfully saved ${imageRecords.length} image records`)
 
-    // Register ZIP as IP asset
-    let zipIpId = null
-    let zipTokenId = null
-    let zipTxHash = null
+    // ZIP file creation and upload - NO IP REGISTRATION
+    // Per Story Protocol best practices: ZIP files are just containers, not IP assets
+    // Only individual training images and the final trained model are registered as IP assets
+    console.log(`\n📦 Note: ZIP file is created for training purposes only`)
+    console.log(`📝 IP Asset registration: Training images ✅, ZIP file ❌, Model (later via webhook) ✅`)
 
-    if (shouldRegisterIP) {
-      console.log(`\n🔐 Registering ZIP as IP asset...`)
+    // Update training job with processing completion
+    console.log(`\n💾 Updating training job with processing status...`)
 
-      try {
-        const zipMetadata = {
-          title: `Training Dataset ZIP: ${zipFileInfo.fileName}`,
-          description: `Complete training dataset containing ${uploadedFiles.length} images for AI model development. This dataset combines multiple training images into a single archive.`,
-          ipType: "model" as const,
-          attributes: [
-            {
-              trait_type: "Dataset Type",
-              value: "Training Images",
-            },
-            {
-              trait_type: "Image Count",
-              value: uploadedFiles.length.toString(),
-            },
-            {
-              trait_type: "Training Job ID",
-              value: trainingJobId,
-            },
-          ],
-        }
-
-        const zipIpResult = await withRetry(async () => {
-          return await mintAndRegisterIP({
-            spgNftContract: spgContract,
-            metadata: zipMetadata,
-          })
-        })
-
-        if (zipIpResult.success) {
-          zipIpId = zipIpResult.ipId
-          zipTokenId = zipIpResult.tokenId?.toString()
-          zipTxHash = zipIpResult.txHash
-          console.log(`✅ ZIP registered as IP asset: ${zipIpResult.ipId}`)
-        } else {
-          console.error(`❌ Failed to register ZIP as IP asset:`, zipIpResult.error)
-        }
-      } catch (error) {
-        console.error(`❌ Exception during ZIP IP registration:`, error)
-      }
+    // Prepare update data - only update processing status and parent IP relationships
+    const updateData: any = {
+      processing_status: "uploading_complete",
     }
 
-    // Update training job with ZIP information
-    console.log(`\n💾 Updating training job with ZIP information...`)
-
-    // Prepare update data with only core columns that should exist
-    const updateData: any = {}
-
-    // Try to add each column safely
-    const columnsToTry = [
-      { key: "zip_file_url", value: zipFileInfo.publicUrl },
-      { key: "zip_file_path", value: zipFileInfo.storagePath },
-      { key: "zip_file_size", value: zipFileInfo.fileSize },
-      { key: "story_zip_ip_id", value: zipIpId },
-      { key: "story_zip_token_id", value: zipTokenId },
-      { key: "story_zip_tx_hash", value: zipTxHash },
-      { key: "processing_status", value: "uploading_complete" },
-    ]
-
-    for (const column of columnsToTry) {
-      if (column.value !== null && column.value !== undefined) {
-        updateData[column.key] = column.value
-      }
+    // Store parent IP IDs for later derivative registration (when model training completes)
+    if (parentIpIds.length > 0) {
+      updateData.story_parent_ip_ids = parentIpIds
+      console.log(`📝 Stored ${parentIpIds.length} parent IP IDs for future model registration`)
     }
-
-    console.log("💾 Updating with available columns:", Object.keys(updateData))
 
     const { error: updateError } = await supabase
       .from("training_jobs")
       .update(updateData)
       .eq("id", trainingJobId)
 
-    if (
-      updateError &&
-      updateError.message.includes("column") &&
-      updateError.message.includes("does not exist")
-    ) {
-      console.log("⚠️ Some columns not available yet, updating with basic info only")
-
-      // Fallback to minimal update
-      const { error: fallbackError } = await supabase
-        .from("training_jobs")
-        .update({
-          status: "preparing", // Use existing status column
-        })
-        .eq("id", trainingJobId)
-
-      if (fallbackError) {
-        console.error("❌ Failed to update training job:", fallbackError)
-        return NextResponse.json({ error: "Failed to update training job" }, { status: 500 })
-      }
-    } else if (updateError) {
-      console.error("❌ Error updating training job:", updateError)
+    if (updateError) {
+      console.error("Error updating training job:", updateError)
       return NextResponse.json({ error: "Failed to update training job" }, { status: 500 })
     }
 
-    // Start Replicate training using the correct API
-    console.log(`\n🚀 Starting Replicate training...`)
+    console.log(`✅ Updated training job ${trainingJobId} - ready for training`)
 
-    try {
-      // Initialize Replicate SDK
-      const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN })
-
-      // Get the training job details for trigger word
-      const { data: trainingJob, error: trainingJobError } = await supabase
-        .from("training_jobs")
-        .select("trigger_word")
-        .eq("id", trainingJobId)
-        .single()
-
-      if (trainingJobError || !trainingJob) {
-        throw new Error("Failed to get training job details")
-      }
-
-      // Determine webhook URL
-      let webhookUrl: string
-      const tunnelUrl = process.env.REPLICATE_WEBHOOK_TUNNEL_URL
-      if (process.env.NODE_ENV === "development" && tunnelUrl) {
-        webhookUrl = `${tunnelUrl}/api/replicate-webhook`
-      } else {
-        const host = process.env.WEBHOOK_HOST || process.env.VERCEL_URL
-        if (!host) throw new Error("Could not determine host for webhook URL.")
-        const protocol = host.startsWith("localhost") ? "http" : "https"
-        webhookUrl = `${protocol}://${host}/api/replicate-webhook`
-      }
-
-      console.log(`🔗 Using webhook URL: ${webhookUrl}`)
-
-      // Create prediction using the correct model and format
-      const prediction = await replicate.predictions.create({
-        model: "black-forest-labs/flux-pro-trainer",
-        input: {
-          input_images: zipFileInfo.publicUrl,
-          trigger_word: trainingJob.trigger_word,
-          captioning: "automatic",
-          training_steps: 300,
-          mode: "style",
-          lora_rank: 16,
-          finetune_type: "lora",
-        },
-        webhook: webhookUrl,
-        webhook_events_filter: ["start", "output", "logs", "completed"],
-      })
-
-      console.log(`✅ Replicate training started: ${prediction.id}`)
-
-      // Update training job with Replicate information
-      const updateReplicateData: any = {
-        replicate_job_id: prediction.id,
-      }
-
-      // Try to add processing_status if the column exists
-      try {
-        updateReplicateData.processing_status = "training"
-      } catch (e) {
-        console.log("⚠️ Processing status column not available")
-      }
-
-      const { error: replicateUpdateError } = await supabase
-        .from("training_jobs")
-        .update(updateReplicateData)
-        .eq("id", trainingJobId)
-
-      if (replicateUpdateError) {
-        console.error("Error updating training job with Replicate ID:", replicateUpdateError)
-      }
-
-      console.log(`🎉 Training process completed successfully!`)
-      console.log(`📊 Summary:`)
-      console.log(`   - Images processed: ${uploadedFiles.length}`)
-      console.log(`   - IP assets registered: ${parentIpIds.length}`)
-      console.log(`   - ZIP IP registered: ${zipIpId ? "Yes" : "No"}`)
-      console.log(`   - Replicate training ID: ${prediction.id}`)
-
-      return NextResponse.json({
-        success: true,
-        message: "Training started successfully",
-        trainingJobId,
-        replicateJobId: prediction.id,
-        zipUrl: zipFileInfo.publicUrl,
-        imageCount: uploadedFiles.length,
-        ipAssetsRegistered: parentIpIds.length,
-        zipIpId,
-      })
-    } catch (error) {
-      console.error("Error starting Replicate training:", error)
-
-      // Update status to indicate Replicate failure
-      const failureUpdateData: any = {
-        error_message: `Failed to start Replicate training: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-      }
-
-      // Try to add processing_status if the column exists
-      try {
-        failureUpdateData.processing_status = "failed"
-      } catch (e) {
-        console.log("⚠️ Processing status column not available")
-      }
-
-      await supabase.from("training_jobs").update(failureUpdateData).eq("id", trainingJobId)
-
-      return NextResponse.json(
-        {
-          error: "Failed to start training",
-          details: error instanceof Error ? error.message : "Unknown error occurred",
-        },
-        { status: 500 }
-      )
-    }
+    return NextResponse.json({
+      success: true,
+      message: "Files processed and training images registered as IP assets",
+      processedImages: imageRecords.length,
+      registeredIPs: parentIpIds.length,
+      parentIpIds: parentIpIds,
+      note: "ZIP file created but not registered as IP asset - only training images and final model are IP assets",
+    })
   } catch (error) {
-    console.error("File processing error:", error)
-    return NextResponse.json(
-      {
-        error: "File processing failed",
-        details: error instanceof Error ? error.message : "Unknown error occurred",
-      },
-      { status: 500 }
-    )
+    console.error("Process uploaded files error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

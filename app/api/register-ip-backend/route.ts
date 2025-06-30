@@ -40,7 +40,6 @@ export async function POST(req: NextRequest) {
         // Create metadata for the training image
         const metadata = {
           title: `Training Image: ${image.original_filename}`,
-          description: `Training image used for AI model development. Original filename: ${image.original_filename}`,
           ipType: "image" as const,
           attributes: [
             {

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 export interface StyleReferenceImage {
   src: string
   alt: string
+  ipId?: string // Story Protocol IP Asset ID (only for registered training images)
 }
 
 /**
@@ -32,10 +33,10 @@ export async function getStyleReferenceImages(modelName: string): Promise<StyleR
     if (!trainingJobError && trainingJob) {
       console.log(`Found training job with individual images for model: ${modelName}`)
 
-      // Fetch ALL individual training images from database
+      // Fetch ALL individual training images from database including IP data
       const { data: trainingImages, error: imagesError } = await supabase
         .from("training_images")
-        .select("supabase_public_url, original_filename")
+        .select("supabase_public_url, original_filename, story_ip_id, story_registration_status")
         .eq("training_job_id", trainingJob.id)
         .order("display_order", { ascending: true })
 
@@ -43,6 +44,8 @@ export async function getStyleReferenceImages(modelName: string): Promise<StyleR
         const styleImages: StyleReferenceImage[] = trainingImages.map((img, index) => ({
           src: img.supabase_public_url,
           alt: `${modelName} training image - ${img.original_filename.replace(/\.[^/.]+$/, "")}`,
+          // Only include ipId if the image is successfully registered
+          ipId: img.story_registration_status === "registered" ? img.story_ip_id : undefined,
         }))
 
         console.log(

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
+import { getModelById, transformDbModelToUIModel, type ModelType } from "@/lib/models-data"
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -103,54 +104,102 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
+async function findModelById(id: string): Promise<ModelType | null> {
+  const staticModel = getModelById(id)
+  if (staticModel) return staticModel
+
+  try {
+    const { getTrainedModelsFromDatabase } = await import("@/lib/server-models")
+    const trained = await getTrainedModelsFromDatabase()
+
+    // Match against both model.id (UI ID which could be replicate_job_id or dbId) and model.dbId
+    const dbModel = trained.find((m) => m.id === id || m.dbId === id)
+
+    if (dbModel) {
+      return dbModel
+    }
+
+    // If not found in memory, try direct database query
+    const supabase = await createClient()
+
+    // Try database ID first
+    let { data: trainingJob, error: jobError } = await supabase
+      .from("training_jobs")
+      .select(
+        `
+        id,
+        replicate_job_id,
+        status,
+        trigger_word,
+        output_model_url,
+        input_images_url,
+        completed_at,
+        predict_time,
+        total_time,
+        training_steps,
+        captioning,
+        created_at,
+        preview_image_url, 
+        description,
+        ip_id
+      `
+      )
+      .eq("id", id)
+      .single()
+
+    if (jobError || !trainingJob) {
+      // Try replicate_job_id
+      const { data: trainingJobByReplicate, error: replicateError } = await supabase
+        .from("training_jobs")
+        .select(
+          `
+          id,
+          replicate_job_id,
+          status,
+          trigger_word,
+          output_model_url,
+          input_images_url,
+          completed_at,
+          predict_time,
+          total_time,
+          training_steps,
+          captioning,
+          created_at,
+          preview_image_url, 
+          description,
+          ip_id
+        `
+        )
+        .eq("replicate_job_id", id)
+        .single()
+
+      if (replicateError || !trainingJobByReplicate) {
+        return null
+      }
+
+      trainingJob = trainingJobByReplicate
+    }
+
+    // Transform the database model to UI format
+    return transformDbModelToUIModel(trainingJob)
+  } catch (err) {
+    console.error("Error loading DB models:", err)
+    return null
+  }
+}
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { id } = await params
+    const model = await findModelById(id)
 
-    // Create Supabase client
-    const supabase = await createClient()
-
-    // Get the model from the database
-    // Try by replicate_job_id first, then by database id
-    let data, error
-
-    const { data: getByReplicateId, error: replicateIdError } = await supabase
-      .from("training_jobs")
-      .select("*")
-      .eq("replicate_job_id", id)
-      .single()
-
-    if (replicateIdError && replicateIdError.code === "PGRST116") {
-      // Record not found, try by database id
-      const { data: getByDbId, error: dbIdError } = await supabase
-        .from("training_jobs")
-        .select("*")
-        .eq("id", id)
-        .single()
-
-      data = getByDbId
-      error = dbIdError
-    } else {
-      data = getByReplicateId
-      error = replicateIdError
+    if (!model) {
+      return NextResponse.json({ error: "Model not found" }, { status: 404 })
     }
 
-    if (error) {
-      console.error("Database error:", error)
-
-      if (error.code === "PGRST116") {
-        return NextResponse.json({ error: "Model not found" }, { status: 404 })
-      }
-
-      return NextResponse.json({ error: "Failed to fetch model" }, { status: 500 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: data,
-    })
+    return NextResponse.json({ data: model })
   } catch (error) {
-    console.error("API error:", error)
+    console.error("Error fetching model:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, type FormEvent, useRef, useEffect } from "react"
+import { useState, type FormEvent, useRef, useEffect, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
@@ -72,14 +72,30 @@ interface TrainingProgress {
   error?: string
 }
 
+// Image metadata type
+interface ImageMetadata {
+  name: string
+  description: string
+}
+
 export default function TrainModelPage() {
   const router = useRouter()
   const { authenticated, user } = usePrivy()
 
-  const [file, setFile] = useState<File | null>(null)
-  const [fileName, setFileName] = useState("")
   const [images, setImages] = useState<File[]>([])
-  const [uploadType, setUploadType] = useState<"zip" | "images" | null>(null)
+  const [imageMetadata, setImageMetadata] = useState<ImageMetadata[]>([])
+
+  // Memoize image URLs to prevent flickering
+  const imageUrls = useMemo(() => {
+    return images.map((file) => URL.createObjectURL(file))
+  }, [images])
+
+  // Cleanup URLs when component unmounts or images change
+  useEffect(() => {
+    return () => {
+      imageUrls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [imageUrls])
 
   const [previewImageFile, setPreviewImageFile] = useState<File | null>(null)
   const [previewImageSrc, setPreviewImageSrc] = useState<string | null>(null)
@@ -103,11 +119,6 @@ export default function TrainModelPage() {
   } | null>(null)
   const [ipRegistrationMethod, setIPRegistrationMethod] = useState<"backend" | "wallet">("backend")
 
-  const {
-    uploading: datasetUploading,
-    progress: datasetProgress,
-    uploadFile: uploadDatasetFile,
-  } = useFileUpload()
   const {
     uploading: previewUploading,
     progress: previewProgress,
@@ -133,31 +144,13 @@ export default function TrainModelPage() {
     if (e.target.files) {
       const fileList = Array.from(e.target.files)
 
-      if (fileList.length === 1) {
-        const selectedFile = fileList[0] as File
-
-        // Check if it's a zip file
-        if (selectedFile.type.includes("zip") || selectedFile.type.includes("application/zip")) {
-          if (selectedFile.size > 2000 * 1024 * 1024) {
-            setFormError("ZIP file size must be less than 2GB.")
-            return
-          }
-          setFile(selectedFile)
-          setFileName(selectedFile.name)
-          setImages([])
-          setUploadType("zip")
-          setFormError(null)
-          return
-        }
-      }
-
       // Check if all files are images
       const validImageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"]
       const imageFiles = fileList as File[]
       const invalidFiles = imageFiles.filter((file) => !validImageTypes.includes(file.type))
 
       if (invalidFiles.length > 0) {
-        setFormError("All files must be images (JPG, PNG, WEBP, GIF) or a single ZIP file.")
+        setFormError("All files must be images (JPG, PNG, WEBP, GIF).")
         return
       }
 
@@ -182,9 +175,13 @@ export default function TrainModelPage() {
       }
 
       setImages(imageFiles)
-      setFile(null)
-      setFileName("")
-      setUploadType("images")
+      // Initialize metadata with default values
+      setImageMetadata(
+        imageFiles.map(() => ({
+          name: "",
+          description: "",
+        }))
+      )
       setFormError(null)
     }
   }
@@ -215,15 +212,23 @@ export default function TrainModelPage() {
     }
   }
 
-  const removeImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index))
-  }
+  const removeImage = useCallback(
+    (index: number) => {
+      // Revoke URL for the removed image
+      if (imageUrls[index]) {
+        URL.revokeObjectURL(imageUrls[index])
+      }
+
+      setImages((prev) => prev.filter((_, i) => i !== index))
+      // Also remove from metadata
+      setImageMetadata((prev) => prev.filter((_, i) => i !== index))
+    },
+    [imageUrls]
+  )
 
   const clearAllFiles = () => {
-    setFile(null)
-    setFileName("")
     setImages([])
-    setUploadType(null)
+    setImageMetadata([])
     setFormError(null)
     setBalanceCheckResult(null)
     const fileInput = document.getElementById("file-upload") as HTMLInputElement
@@ -262,8 +267,8 @@ export default function TrainModelPage() {
 
   const handleReviewTraining = async () => {
     // Basic validation
-    if (!file && images.length === 0) {
-      setFormError("Please select a dataset file or images to upload.")
+    if (images.length === 0) {
+      setFormError("Please select images to upload.")
       return
     }
 
@@ -324,58 +329,7 @@ export default function TrainModelPage() {
         console.log("✅ Preview image uploaded:", previewImageUrl)
       }
 
-      if (uploadType === "zip" && file) {
-        // Handle ZIP file upload (existing logic)
-        console.log("🚀 Uploading ZIP dataset file...")
-
-        const uploadResult = await uploadDatasetFile(file, {
-          onProgress: (progress) => {
-            setTrainingProgress((prev) => ({
-              ...prev,
-              uploadProgress: progress,
-            }))
-          },
-        })
-
-        // Move to training stage
-        setTrainingProgress((prev) => ({
-          ...prev,
-          stage: "training",
-        }))
-
-        const result = await startTrainingJobOptimized({
-          publicUrl: uploadResult.publicUrl,
-          storagePath: uploadResult.storagePath,
-          originalFileName: fileName,
-          triggerWord: triggerWord || "TOK",
-          captioning: captioning || "automatic",
-          trainingSteps: trainingSteps || "300",
-          previewImageUrl: previewImageUrl,
-          description: description,
-          hasIndividualImages: false,
-          individualImagesCount: 0,
-          userWalletAddress: user?.wallet?.address ?? zeroAddress,
-          ipRegistrationMethod: ipRegistrationMethod,
-        })
-
-        if (result.success && result.jobId) {
-          setTrainingProgress((prev) => ({
-            ...prev,
-            trainingStarted: true,
-          }))
-
-          // Auto-redirect after 5 seconds
-          setTimeout(() => {
-            setIsModalOpen(false)
-            router.push(`/models`)
-          }, 5000)
-        } else {
-          setTrainingProgress((prev) => ({
-            ...prev,
-            error: result.error || "Failed to start training job",
-          }))
-        }
-      } else if (uploadType === "images" && images.length > 0) {
+      if (images.length > 0) {
         // Handle individual images with new pre-signed URL approach
         console.log("🚀 Creating training job for individual images...")
 
@@ -402,7 +356,7 @@ export default function TrainModelPage() {
           setTrainingProgress((prev) => ({
             ...prev,
             stage: "upload",
-            registrationProgress: { total: images.length + 1, completed: 0 }, // +1 for ZIP
+            registrationProgress: { total: images.length, completed: 0 },
           }))
 
           console.log(`🚀 Starting presigned URL upload process for ${images.length} images...`)
@@ -410,6 +364,10 @@ export default function TrainModelPage() {
           try {
             // Upload files using pre-signed URLs
             console.log("📤 Starting file uploads...")
+            const nftMetadata = images.map((file, index) => ({
+              name: imageMetadata[index]?.name?.trim() || file.name,
+              description: imageMetadata[index]?.description?.trim() || undefined,
+            }))
             const { uploadedFiles, zipFileInfo } = await uploadFiles(
               images,
               trainingJobId,
@@ -419,7 +377,8 @@ export default function TrainModelPage() {
                   ...prev,
                   uploadProgress: progress,
                 }))
-              }
+              },
+              nftMetadata
             )
 
             console.log(`✅ All files uploaded successfully - ${uploadedFiles.length} files`)
@@ -429,14 +388,14 @@ export default function TrainModelPage() {
               ...prev,
               stage: "registration",
               uploadProgress: 100,
-              registrationProgress: { total: images.length + 1, completed: 0 },
+              registrationProgress: { total: images.length, completed: 0 },
             }))
 
             console.log("🔐 Starting IP registration and training process...")
 
             // Start progress simulation for registration with timeout protection
             let progressCounter = 0
-            const maxProgress = images.length + 1
+            const maxProgress = images.length
 
             const progressInterval = setInterval(() => {
               progressCounter++
@@ -454,10 +413,7 @@ export default function TrainModelPage() {
                     registrationProgress: {
                       ...prev.registrationProgress,
                       completed: nextCompleted,
-                      current:
-                        nextCompleted <= images.length
-                          ? `Registering image ${nextCompleted} of ${images.length}...`
-                          : "Registering ZIP file as IP asset...",
+                      current: `Registering image ${nextCompleted} of ${images.length}...`,
                     },
                   }
                 }
@@ -472,7 +428,12 @@ export default function TrainModelPage() {
             }, 2500) // Update every 2.5 seconds
 
             // Process uploaded files (IP registration and training start) - this runs in background
-            const result = await processUploadedFiles(trainingJobId, uploadedFiles, zipFileInfo)
+            const result = await processUploadedFiles(
+              trainingJobId,
+              uploadedFiles,
+              zipFileInfo,
+              nftMetadata
+            )
 
             // Clear the progress interval
             clearInterval(progressInterval)
@@ -485,10 +446,9 @@ export default function TrainModelPage() {
                 ...prev,
                 stage: "training",
                 registrationProgress: {
-                  total: images.length + 1,
-                  completed: images.length + 1,
+                  total: images.length,
+                  completed: images.length,
                   current: "IP registration complete",
-                  zipProgress: true,
                 },
                 trainingStarted: true,
               }))
@@ -526,16 +486,16 @@ export default function TrainModelPage() {
             }))
           }
         } else {
-          // Wallet method - use existing client-side registration
+          // Wallet method - not yet updated for presigned upload system
           setTrainingProgress((prev) => ({
             ...prev,
             stage: "registration",
           }))
 
-          console.log(`🚀 Using wallet method for IP registration...`)
+          console.log(`🚀 Wallet method IP registration not yet implemented...`)
 
-          // This would use the existing uploadMultipleImagesFile and client-side IP registration
-          // For now, show an error as this method is not yet updated for pre-signed URLs
+          // Wallet method would require updating the client-side IP registration
+          // to work with the new presigned upload flow
           setTrainingProgress((prev) => ({
             ...prev,
             error:
@@ -543,7 +503,7 @@ export default function TrainModelPage() {
           }))
         }
       } else {
-        throw new Error("Invalid upload type or missing files")
+        throw new Error("No images selected for training")
       }
     } catch (error) {
       setTrainingProgress((prev) => ({
@@ -565,13 +525,13 @@ export default function TrainModelPage() {
 
   // Update progress from upload hooks
   useEffect(() => {
-    if (datasetUploading) {
+    if (previewUploading) {
       setTrainingProgress((prev) => ({
         ...prev,
-        uploadProgress: datasetProgress,
+        uploadProgress: previewProgress,
       }))
     }
-  }, [datasetUploading, datasetProgress])
+  }, [previewUploading, previewProgress])
 
   const renderModalContent = () => {
     if (trainingProgress.stage === "consent") {
@@ -614,10 +574,7 @@ export default function TrainModelPage() {
             >
               Cancel
             </AlertDialogCancel>
-            <Button
-              onClick={handleStartTraining}
-              disabled={!isConsentGiven || (!file && images.length === 0)}
-            >
+            <Button onClick={handleStartTraining} disabled={!isConsentGiven || images.length === 0}>
               Agree & Start Training
             </Button>
           </AlertDialogFooter>
@@ -804,13 +761,13 @@ export default function TrainModelPage() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-100">
+    <div className="flex min-h-screen bg-slate-100">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col">
         <TopBar />
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl">
-          <div className="max-w-3xl mx-auto">
-            {!file && images.length === 0 && (
+        <main className="flex-1 p-6 lg:p-8 bg-white rounded-tl-xl">
+          <div className="max-w-6xl mx-auto pb-8">
+            {!images.length && (
               <Card className="">
                 <CardHeader>
                   <CardTitle>Train a New Style Model</CardTitle>
@@ -844,7 +801,7 @@ export default function TrainModelPage() {
                       onChange={handleFileChange}
                     />
                   </Label>
-                  {formError && !file && images.length === 0 && (
+                  {formError && !images.length && (
                     <p className="mt-2 text-sm text-red-600">
                       <AlertCircle className="inline w-4 h-4 mr-1" />
                       {formError}
@@ -854,190 +811,229 @@ export default function TrainModelPage() {
               </Card>
             )}
 
-            <form id="trainModelForm">
-              <div className="space-y-6">
-                {file && uploadType === "zip" && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <FileZip className="mr-2" />
-                          Selected ZIP Dataset
-                        </div>
-                        <Button type="button" variant="outline" size="sm" onClick={clearAllFiles}>
-                          <X className="h-4 w-4 mr-1" />
-                          Remove
-                        </Button>
-                      </CardTitle>
-                      <CardDescription>
-                        {fileName} • {Math.round(file.size / 1024 / 1024)}MB
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                )}
-
-                {images.length > 0 && uploadType === "images" && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <ImageIcon className="mr-2" />
-                          Selected Images ({images.length})
-                        </div>
-                        <Button type="button" variant="outline" size="sm" onClick={clearAllFiles}>
-                          <X className="h-4 w-4 mr-1" />
-                          Remove All
-                        </Button>
-                      </CardTitle>
-                      <CardDescription>
-                        Total size:{" "}
-                        {Math.round(images.reduce((sum, img) => sum + img.size, 0) / 1024 / 1024)}MB
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                        {images.map((image, index) => (
-                          <div key={index} className="relative group">
-                            <div className="aspect-square relative rounded-lg overflow-hidden border">
-                              <Image
-                                src={URL.createObjectURL(image)}
-                                alt={`Preview ${index + 1}`}
-                                fill
-                                className="object-cover"
-                                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
-                              />
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="icon"
-                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => removeImage(index)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-1 truncate">{image.name}</p>
+            {images.length > 0 && (
+              <form id="trainModelForm">
+                <div className="space-y-6">
+                  {images.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <ImageIcon className="mr-2" />
+                            Selected Images ({images.length})
                           </div>
-                        ))}
+                          <Button type="button" variant="outline" size="sm" onClick={clearAllFiles}>
+                            <X className="h-4 w-4 mr-1" />
+                            Remove All
+                          </Button>
+                        </CardTitle>
+                        <CardDescription>
+                          Total size:{" "}
+                          {Math.round(
+                            images.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024
+                          )}
+                          MB
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                          {images.map((file, index) => (
+                            <div key={`${file.name}-${index}`} className="space-y-4">
+                              {/* Image Preview */}
+                              <div className="relative group">
+                                <div className="aspect-square relative rounded-lg overflow-hidden border max-w-[480px] mx-auto">
+                                  <Image
+                                    src={imageUrls[index]}
+                                    alt={`Preview ${index + 1}`}
+                                    fill
+                                    className="object-cover"
+                                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={() => removeImage(index)}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-2 text-center">
+                                  {Math.round(file.size / 1024)}KB •{" "}
+                                  {file.type.split("/")[1].toUpperCase()}
+                                </p>
+                              </div>
+
+                              {/* Metadata Inputs */}
+                              <div className="space-y-4">
+                                <div>
+                                  <Label className="text-sm font-medium">IP Name</Label>
+                                  <Input
+                                    value={imageMetadata[index]?.name || ""}
+                                    onChange={(e) => {
+                                      const newMetadata = [...imageMetadata]
+                                      newMetadata[index] = {
+                                        ...newMetadata[index],
+                                        name: e.target.value,
+                                      }
+                                      setImageMetadata(newMetadata)
+                                    }}
+                                    placeholder={file.name}
+                                    className="mt-1"
+                                  />
+                                  <p className="text-xs text-slate-500 mt-1">
+                                    Leave empty to use filename: {file.name}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <Label className="text-sm font-medium">
+                                    IP Description (Optional)
+                                  </Label>
+                                  <Textarea
+                                    value={imageMetadata[index]?.description || ""}
+                                    onChange={(e) => {
+                                      const newMetadata = [...imageMetadata]
+                                      newMetadata[index] = {
+                                        ...newMetadata[index],
+                                        description: e.target.value,
+                                      }
+                                      setImageMetadata(newMetadata)
+                                    }}
+                                    placeholder="Describe this image for the NFT metadata..."
+                                    rows={3}
+                                    maxLength={500}
+                                    className="mt-1 resize-none"
+                                  />
+                                  <p className="text-xs text-slate-500 mt-1">
+                                    {imageMetadata[index]?.description?.length || 0}/500 characters
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <Settings className="mr-2" /> Model Configuration
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="trigger_word">Model Name / Trigger Word</Label>
+                        <Input
+                          id="trigger_word"
+                          name="trigger_word"
+                          defaultValue=""
+                          placeholder="e.g., MyUniqueStyle, ArtByHRGIGER"
+                          required
+                        />
+                        <p className="text-xs text-slate-500 mt-1">
+                          A unique word to activate your model. No spaces.
+                        </p>
                       </div>
+                      <div>
+                        <Label htmlFor="description">Optional: Model Description</Label>
+                        <Textarea
+                          id="description"
+                          name="description"
+                          placeholder="Describe your model's style, subject, or best use cases (max 200 characters)."
+                          maxLength={2000}
+                          className="h-24"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="training_steps">Training Steps</Label>
+                        <Select name="training_steps" defaultValue="300">
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select training steps" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[149, 300, 400, 500, 600, 700, 800, 900, 1000].map((s) => (
+                              <SelectItem key={s} value={String(s)}>
+                                {s}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="advanced-settings">
+                          <AccordionTrigger className="text-sm">Advanced Settings</AccordionTrigger>
+                          <AccordionContent className="space-y-4 pt-2">
+                            <div>
+                              <Label htmlFor="ip_registration">IP Registration Method</Label>
+                              <RadioGroup
+                                value={ipRegistrationMethod}
+                                onValueChange={(value) =>
+                                  setIPRegistrationMethod(value as "backend" | "wallet")
+                                }
+                                className="mt-2"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="backend" id="backend" />
+                                  <Label htmlFor="backend" className="text-sm font-normal">
+                                    Use backend wallet (recommended)
+                                  </Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="wallet" id="wallet" />
+                                  <Label htmlFor="wallet" className="text-sm font-normal">
+                                    Register IP with connected wallet (coming soon)
+                                  </Label>
+                                </div>
+                              </RadioGroup>
+                              <p className="text-xs text-slate-500 mt-1">
+                                Backend wallet: Faster, automatic registration. Connected wallet:
+                                You own the IP assets.
+                              </p>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+
+                      <input type="hidden" name="captioning" value="automatic" />
                     </CardContent>
                   </Card>
-                )}
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <Settings className="mr-2" /> Model Configuration
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="trigger_word">Model Name / Trigger Word</Label>
-                      <Input
-                        id="trigger_word"
-                        name="trigger_word"
-                        defaultValue=""
-                        placeholder="e.g., MyUniqueStyle, ArtByHRGIGER"
-                        required
-                      />
-                      <p className="text-xs text-slate-500 mt-1">
-                        A unique word to activate your model. No spaces.
-                      </p>
-                    </div>
-                    <div>
-                      <Label htmlFor="description">Optional: Model Description</Label>
-                      <Textarea
-                        id="description"
-                        name="description"
-                        placeholder="Describe your model's style, subject, or best use cases (max 200 characters)."
-                        maxLength={2000}
-                        className="h-24"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="training_steps">Training Steps</Label>
-                      <Select name="training_steps" defaultValue="300">
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select training steps" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[149, 300, 400, 500, 600, 700, 800, 900, 1000].map((s) => (
-                            <SelectItem key={s} value={String(s)}>
-                              {s}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <Accordion type="single" collapsible className="w-full">
-                      <AccordionItem value="advanced-settings">
-                        <AccordionTrigger className="text-sm">Advanced Settings</AccordionTrigger>
-                        <AccordionContent className="space-y-4 pt-2">
-                          <div>
-                            <Label htmlFor="ip_registration">IP Registration Method</Label>
-                            <RadioGroup
-                              value={ipRegistrationMethod}
-                              onValueChange={(value) =>
-                                setIPRegistrationMethod(value as "backend" | "wallet")
-                              }
-                              className="mt-2"
-                            >
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="backend" id="backend" />
-                                <Label htmlFor="backend" className="text-sm font-normal">
-                                  Use backend wallet (recommended)
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="wallet" id="wallet" />
-                                <Label htmlFor="wallet" className="text-sm font-normal">
-                                  Register IP with connected wallet (coming soon)
-                                </Label>
-                              </div>
-                            </RadioGroup>
-                            <p className="text-xs text-slate-500 mt-1">
-                              Backend wallet: Faster, automatic registration. Connected wallet: You
-                              own the IP assets.
-                            </p>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-
-                    <input type="hidden" name="captioning" value="automatic" />
-                  </CardContent>
-                </Card>
-
-                {formError && (
-                  <p className="mt-2 text-sm text-red-600 text-center">
-                    <AlertCircle className="inline w-4 h-4 mr-1" />
-                    {formError}
-                  </p>
-                )}
-
-                <Button
-                  type="button"
-                  className="w-full"
-                  onClick={handleReviewTraining}
-                  disabled={balanceCheckLoading || (!file && images.length === 0)}
-                >
-                  {balanceCheckLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Wand2 className="mr-2 h-4 w-4" />
+                  {formError && (
+                    <p className="mt-2 text-sm text-red-600 text-center">
+                      <AlertCircle className="inline w-4 h-4 mr-1" />
+                      {formError}
+                    </p>
                   )}
-                  {balanceCheckLoading ? "Processing..." : "Review & Start Training"}
-                </Button>
 
-                {/* Combined Modal */}
-                <AlertDialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                  <AlertDialogContent className="max-w-md">
-                    {renderModalContent()}
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </form>
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={handleReviewTraining}
+                    disabled={balanceCheckLoading || images.length === 0}
+                  >
+                    {balanceCheckLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wand2 className="mr-2 h-4 w-4" />
+                    )}
+                    {balanceCheckLoading ? "Processing..." : "Review & Start Training"}
+                  </Button>
+
+                  {/* Combined Modal */}
+                  <AlertDialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                    <AlertDialogContent className="max-w-md">
+                      {renderModalContent()}
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </form>
+            )}
+
             <div className="mt-8 text-center">
               <Link href="/models" className="text-sm text-slate-600 hover:text-slate-800">
                 <ArrowLeft className="inline w-4 h-4 mr-1" /> Back to All Models

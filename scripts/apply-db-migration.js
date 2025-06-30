@@ -43,9 +43,7 @@ async function applyMigration() {
       "processing_status",
       "zip_file_url",
       "zip_file_path",
-      "zip_file_size",
-      "story_zip_ip_id",
-      "story_zip_token_id",
+      "ip_id",
       "story_zip_tx_hash",
     ]
 
@@ -79,9 +77,6 @@ async function applyMigration() {
         switch (col) {
           case "processing_status":
             console.log(`${col}: type=text, default='pending'`)
-            break
-          case "zip_file_size":
-            console.log(`${col}: type=bigint`)
             break
           default:
             console.log(`${col}: type=text`)

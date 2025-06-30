@@ -13,8 +13,9 @@ interface MetaMaskProvider {
 
 export interface IPMetadata {
   title: string
-  description: string
+  description?: string
   ipType: "image" | "model"
+  image?: string
   attributes?: Array<{
     trait_type: string
     value: string

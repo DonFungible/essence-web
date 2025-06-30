@@ -1,7 +1,18 @@
 "use client"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, User, Info, Cpu, Tag, Clock, Zap, Palette } from "lucide-react"
+import {
+  ArrowLeft,
+  User,
+  Info,
+  Cpu,
+  Tag,
+  Clock,
+  Zap,
+  Palette,
+  Copy,
+  ExternalLink,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Sidebar from "@/components/sidebar" // Re-using sidebar for consistent layout
@@ -223,6 +234,32 @@ export default function ImageDetailPage({ params }: ImageDetailPageProps) {
                     </div>
                   )}
 
+                  {/* IP Asset ID for Generated Images */}
+                  {!isGalleryImage && generatedImage && modelData?.ip_id && (
+                    <div className="space-y-1 mb-5">
+                      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center">
+                        <Tag className="w-4 h-4 mr-2" />
+                        IP Asset ID
+                      </h2>
+                      <div className="flex items-center gap-2">
+                        <p className="text-slate-700 text-xs font-mono bg-slate-100 p-2 rounded border flex-1">
+                          {modelData.ip_id}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigator.clipboard.writeText(modelData.ip_id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Story Protocol IP Asset representing this AI model
+                      </p>
+                    </div>
+                  )}
+
                   {/* Generation Parameters for Generated Images */}
                   {!isGalleryImage && generatedImage && (
                     <div className="space-y-3 mb-5">
@@ -312,6 +349,15 @@ export default function ImageDetailPage({ params }: ImageDetailPageProps) {
                         <span className="text-slate-500">Prediction ID:</span>
                         <span className="text-slate-700 font-mono text-xs">
                           {generatedImage.replicate_prediction_id.slice(0, 8)}...
+                        </span>
+                      </div>
+                    )}
+
+                    {!isGalleryImage && modelData?.ip_id && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">IP Asset ID:</span>
+                        <span className="text-slate-700 font-mono text-xs">
+                          {modelData.ip_id.slice(0, 8)}...
                         </span>
                       </div>
                     )}

@@ -1,7 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { type ModelType, models as staticModels, transformDbModelToUIModel } from "@/lib/models-data"
+import {
+  type ModelType,
+  models as staticModels,
+  transformDbModelToUIModel,
+} from "@/lib/models-data"
 import { createClient } from "@/utils/supabase/client"
 
 export function useModels() {
@@ -12,7 +16,11 @@ export function useModels() {
     const fetchTrainedModels = async () => {
       try {
         const supabase = createClient()
-        const { data, error } = await supabase.from("training_jobs").select("*").eq("status", "succeeded")
+        const { data, error } = await supabase
+          .from("training_jobs")
+          .select("*")
+          .eq("status", "succeeded")
+          .eq("is_hidden", false)
 
         if (error) {
           throw error

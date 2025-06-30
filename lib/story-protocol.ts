@@ -173,8 +173,9 @@ export async function canUserTrain(address: string): Promise<{
 
 export interface IPMetadata {
   title: string
-  description: string
+  description?: string
   ipType: "image" | "model"
+  image?: string
   attributes?: Array<{
     trait_type: string
     value: string
@@ -324,6 +325,54 @@ export async function mintAndRegisterIP(params: {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
+    }
+  }
+}
+
+/**
+ * Mint license tokens for parent IP assets
+ */
+export async function mintLicenseTokens(params: {
+  licensorIpId: string
+  licenseTermsId: string
+  amount?: number
+  receiver?: string
+  maxMintingFee?: string
+  maxRevenueShare?: number
+}) {
+  try {
+    const client = getStoryClient()
+
+    console.log(`[STORY] Minting license tokens for IP: ${params.licensorIpId}`)
+
+    const response = await withRetry(async () => {
+      return await client.license.mintLicenseTokens({
+        licensorIpId: params.licensorIpId as `0x${string}`,
+        licenseTermsId: BigInt(params.licenseTermsId),
+        amount: params.amount || 1,
+        receiver: params.receiver as `0x${string}` | undefined,
+        maxMintingFee: params.maxMintingFee || "0", // No minting fee
+        maxRevenueShare: params.maxRevenueShare || 0, // No revenue share
+      })
+    })
+
+    console.log(
+      `[STORY] License tokens minted: ${response.licenseTokenIds?.join(", ")} (tx: ${
+        response.txHash
+      })`
+    )
+
+    return {
+      success: true,
+      licenseTokenIds: response.licenseTokenIds || [],
+      txHash: response.txHash,
+    }
+  } catch (error) {
+    console.error("[STORY] Error minting license tokens:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+      licenseTokenIds: [],
     }
   }
 }

@@ -27,6 +27,7 @@ interface TrainingImageData {
   content_type: string
   file_size: number
   training_job_id: string
+  supabase_public_url: string
 }
 
 export function useStoryIPRegistration(): UseStoryIPRegistrationResult {
@@ -76,8 +77,8 @@ export function useStoryIPRegistration(): UseStoryIPRegistrationResult {
           // Create metadata for the training image
           const metadata: IPMetadata = {
             title: `Training Image: ${image.original_filename}`,
-            description: `Training image used for AI model development. Original filename: ${image.original_filename}`,
             ipType: "image",
+            image: image.supabase_public_url,
             attributes: [
               {
                 trait_type: "File Type",

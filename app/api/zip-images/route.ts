@@ -527,62 +527,13 @@ export async function POST(req: NextRequest) {
     // Get public URL for ZIP
     const { data: urlData } = supabase.storage.from("models").getPublicUrl(finalZipPath)
 
-    let zipIpId = null
-    let zipTokenId = null
-    let zipTxHash = null
-
-    // Step 7: Register ZIP as derivative IP asset
-    if (shouldRegisterIP && parentIpIds.length > 0) {
-      console.log(`\n🔐 Registering ZIP as derivative IP asset...`)
-      console.log(`📋 Parent IP IDs: ${parentIpIds.length} assets`)
-
-      try {
-        const zipMetadata = {
-          title: `Training Dataset ZIP: ${zipFileName}`,
-          description: `Complete training dataset containing ${files.length} images for AI model development. This derivative work combines multiple training images into a single archive.`,
-          ipType: "model" as const,
-          attributes: [
-            {
-              trait_type: "Dataset Type",
-              value: "Training Images",
-            },
-            {
-              trait_type: "Image Count",
-              value: files.length.toString(),
-            },
-            {
-              trait_type: "Total Size",
-              value: `${zipSizeMB} MB`,
-            },
-            {
-              trait_type: "Training Job ID",
-              value: trainingJobId,
-            },
-          ],
-        }
-
-        // For now, register ZIP as standalone IP since derivative registration requires license tokens
-        // TODO: Implement proper license token flow for derivative registration
-        const zipIpResult = await mintAndRegisterIP({
-          spgNftContract: spgContract,
-          metadata: zipMetadata,
-        })
-
-        if (zipIpResult.success) {
-          zipIpId = zipIpResult.ipId
-          zipTokenId = zipIpResult.tokenId?.toString()
-          zipTxHash = zipIpResult.txHash
-          console.log(`✅ ZIP registered as IP asset: ${zipIpResult.ipId}`)
-          console.log(
-            `📝 Note: Registered as standalone IP (derivative registration requires license token flow)`
-          )
-        } else {
-          console.error(`❌ Failed to register ZIP as IP asset:`, zipIpResult.error)
-        }
-      } catch (error) {
-        console.error(`❌ Exception during ZIP IP registration:`, error)
-      }
-    }
+    // Step 7: ZIP file is created but NOT registered as IP
+    // Per Story Protocol best practices, the ZIP file is just a container
+    // The trained model will be registered as a derivative of the training images
+    console.log(`\n📦 ZIP file created successfully (${zipSizeMB}MB)`)
+    console.log(
+      `📝 Note: ZIP file is not registered as IP - only training images and final model are IP assets`
+    )
 
     // Step 8: Update training job with ZIP information
     console.log(`\n💾 Updating training job with ZIP information...`)
@@ -592,11 +543,8 @@ export async function POST(req: NextRequest) {
       .update({
         zip_file_url: urlData.publicUrl,
         zip_file_path: finalZipPath,
-        zip_file_size: zipBuffer.byteLength,
-        story_zip_ip_id: zipIpId,
-        story_zip_token_id: zipTokenId,
-        story_zip_tx_hash: zipTxHash,
         processing_status: "uploading_complete",
+        story_parent_ip_ids: parentIpIds.length > 0 ? parentIpIds : null,
       })
       .eq("id", trainingJobId)
 
@@ -604,6 +552,8 @@ export async function POST(req: NextRequest) {
       console.error("Error updating training job:", updateError)
       return NextResponse.json({ error: "Failed to update training job" }, { status: 500 })
     }
+
+    console.log(`✅ Updated training job with ZIP info and ${parentIpIds.length} parent IP IDs`)
 
     // Step 9: Start Replicate training
     console.log(`\n🚀 Starting Replicate training...`)
@@ -663,7 +613,6 @@ export async function POST(req: NextRequest) {
         zipUrl: urlData.publicUrl,
         imageCount: files.length,
         ipAssetsRegistered: parentIpIds.length,
-        zipIpId,
       })
     } catch (error) {
       console.error("Error starting Replicate training:", error)

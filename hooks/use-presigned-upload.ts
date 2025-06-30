@@ -133,10 +133,12 @@ export function usePresignedUpload() {
   const uploadFiles = async (
     files: File[],
     trainingJobId: string,
-    onOverallProgress?: (progress: number) => void
+    onOverallProgress?: (progress: number) => void,
+    metadata?: Array<{ name: string; description?: string }>
   ): Promise<{
     uploadedFiles: UploadUrl[]
     zipFileInfo: ZipUpload & { fileSize: number }
+    metadata?: Array<{ name: string; description?: string }>
   }> => {
     setIsUploading(true)
     setError(null)
@@ -238,6 +240,7 @@ export function usePresignedUpload() {
           ...zipUpload,
           fileSize: zipBlob.size,
         },
+        metadata,
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Upload failed"
@@ -252,7 +255,8 @@ export function usePresignedUpload() {
   const processUploadedFiles = async (
     trainingJobId: string,
     uploadedFiles: UploadUrl[],
-    zipFileInfo: ZipUpload & { fileSize: number }
+    zipFileInfo: ZipUpload & { fileSize: number },
+    metadata?: Array<{ name: string; description?: string }>
   ) => {
     console.log("🔄 Processing uploaded files...", {
       trainingJobId,
@@ -269,6 +273,7 @@ export function usePresignedUpload() {
         trainingJobId,
         uploadedFiles,
         zipFileInfo,
+        metadata,
       }),
     })
 
