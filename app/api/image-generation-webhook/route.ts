@@ -102,6 +102,25 @@ export async function POST(req: NextRequest) {
             updateData.supabase_storage_path = storedImageData.storagePath
             updateData.image_size = storedImageData.imageSize
             console.log(`💾 Image stored in Supabase: ${storedImageData.publicUrl}`)
+
+            // Register the generated image as a derivative of the AI model (non-blocking)
+            registerGeneratedImageAsDerivative(
+              generationRecord,
+              storedImageData.publicUrl || imageUrl
+            )
+              .then((result: any) => {
+                if (result?.success) {
+                  console.log(`✅ Generated image registered as derivative IP: ${result.ipId}`)
+                } else {
+                  console.error(
+                    `❌ Failed to register generated image as derivative:`,
+                    result?.error || "Unknown error"
+                  )
+                }
+              })
+              .catch((error: any) => {
+                console.error(`❌ Error registering generated image as derivative:`, error)
+              })
           } else {
             console.error(`⚠️ Failed to store image in Supabase: ${storedImageData.error}`)
             // Continue with original URL as fallback
@@ -315,6 +334,145 @@ async function downloadAndStoreImage(imageUrl: string, generationId: string) {
     return {
       success: false,
       error: error.message,
+    }
+  }
+}
+
+/**
+ * Register a generated image as a derivative IP asset of the AI model that created it
+ */
+async function registerGeneratedImageAsDerivative(
+  generationRecord: any,
+  imageUrl: string
+): Promise<{ success: boolean; ipId?: string; error?: string }> {
+  try {
+    console.log(
+      `🎨 [DERIVATIVE_IP] Starting derivative registration for image: ${generationRecord.id}`
+    )
+
+    // Check if Story Protocol is configured
+    const { isStoryConfigured, getSPGNftContract, mintAndRegisterIpAndMakeDerivative } =
+      await import("@/lib/story-protocol")
+
+    if (!isStoryConfigured()) {
+      console.log(
+        `⚠️ [DERIVATIVE_IP] Story Protocol not configured, skipping derivative registration`
+      )
+      return { success: false, error: "Story Protocol not configured" }
+    }
+
+    // Get the AI model details from the database
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    console.log(`📝 [DERIVATIVE_IP] Looking up AI model: ${generationRecord.model_id}`)
+
+    const { data: aiModel, error: modelError } = await supabase
+      .from("training_jobs")
+      .select("ip_id, trigger_word, replicate_job_id")
+      .eq("replicate_job_id", generationRecord.model_id)
+      .single()
+
+    if (modelError || !aiModel) {
+      console.error(`❌ [DERIVATIVE_IP] AI model not found:`, modelError)
+      return { success: false, error: "AI model not found" }
+    }
+
+    if (!aiModel.ip_id) {
+      console.error(
+        `❌ [DERIVATIVE_IP] AI model ${generationRecord.model_id} is not registered as IP asset`
+      )
+      return { success: false, error: "AI model not registered as IP asset" }
+    }
+
+    console.log(`📝 [DERIVATIVE_IP] Found AI model IP: ${aiModel.ip_id}`)
+
+    // Create metadata for the generated image
+    const imageMetadata = {
+      title: `Generated Image: ${generationRecord.prompt.substring(0, 50)}...`,
+      description: `AI-generated image created using the "${
+        aiModel.trigger_word
+      }" model. Prompt: "${generationRecord.prompt}". Generated at ${new Date().toISOString()}.`,
+      ipType: "image" as const,
+      image: imageUrl, // Supabase URL of the generated image
+      attributes: [
+        {
+          trait_type: "Content Type",
+          value: "AI Generated Image",
+        },
+        {
+          trait_type: "Model Trigger Word",
+          value: aiModel.trigger_word,
+        },
+        {
+          trait_type: "Generation Prompt",
+          value: generationRecord.prompt,
+        },
+      ],
+    }
+
+    console.log(`🔗 [DERIVATIVE_IP] Registering image as derivative of AI model: ${aiModel.ip_id}`)
+
+    const spgContract = getSPGNftContract()
+
+    // Register the generated image as a derivative of the AI model
+    const result = await mintAndRegisterIpAndMakeDerivative({
+      spgNftContract: spgContract,
+      parentIpIds: [aiModel.ip_id], // Generated image is a derivative of the AI model
+      licenseTermsId: "1", // Use default license terms
+      metadata: imageMetadata,
+    })
+
+    if (!result.success) {
+      console.error(`❌ [DERIVATIVE_IP] Failed to register generated image:`, result.error)
+      return { success: false, error: result.error }
+    }
+
+    console.log(
+      `✅ [DERIVATIVE_IP] Successfully registered generated image as derivative IP: ${result.ipId}`
+    )
+
+    // Update the image generation record with IP information
+    const updateData: any = {
+      ip_id: result.ipId,
+      story_image_tx_hash: result.txHash,
+      story_derivative_tx_hash: result.txHash, // Same transaction for this method
+      story_parent_model_ip_id: aiModel.ip_id,
+      story_registration_status: "registered",
+    }
+
+    console.log(`💾 [DERIVATIVE_IP] Updating generation record with IP information:`, updateData)
+
+    const { error: updateError } = await supabase
+      .from("image_generations")
+      .update(updateData)
+      .eq("id", generationRecord.id)
+
+    if (updateError) {
+      console.error(`❌ [DERIVATIVE_IP] Error updating generation record:`, updateError)
+      // Note: IP registration succeeded, but database update failed
+      // This is logged but not considered a failure of the IP registration
+    } else {
+      console.log(`✅ [DERIVATIVE_IP] Updated generation record with IP information`)
+    }
+
+    return {
+      success: true,
+      ipId: result.ipId,
+    }
+  } catch (error: any) {
+    console.error(`❌ [DERIVATIVE_IP] Error in registerGeneratedImageAsDerivative:`, {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    })
+
+    return {
+      success: false,
+      error: error.message || "Unknown error during derivative registration",
     }
   }
 }

@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
               parentIpIds.push(ipResult.ipId!)
               console.log(`✅ IP registered successfully: ${ipResult.ipId}`)
             } else {
-              console.error(`❌ Failed to register IP:`, ipResult.error)
+              console.error(`❌ Failed to register IP!`, ipResult)
               registrationStatus = "failed"
             }
           } catch (error) {
@@ -309,7 +309,7 @@ export async function POST(req: NextRequest) {
       const tunnelUrl = process.env.REPLICATE_WEBHOOK_TUNNEL_URL
       if (process.env.NODE_ENV === "development" && tunnelUrl) {
         console.log("Using tunnel URL:", tunnelUrl)
-        webhookUrl = `https://meerkat-leading-glider.ngrok-free.app/api/replicate-webhook`
+        webhookUrl = `${tunnelUrl}/api/replicate-webhook`
       } else {
         console.log("Using webhook host:", process.env.WEBHOOK_HOST)
         webhookUrl = `${process.env.WEBHOOK_HOST}/api/replicate-webhook`
