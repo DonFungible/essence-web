@@ -73,6 +73,7 @@ export default async function ModelsPage() {
       href: `/models/${model.id}`, // model.id is now replicate_job_id or dbId
       description: model.description || "",
       modelId: model.dbId || model.id, // Pass the database ID for delete functionality
+      ipId: model.ipId || undefined, // Pass the Story Protocol IP Asset ID
     }))
   )
 

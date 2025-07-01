@@ -10,6 +10,7 @@ import {
   Upload,
   Link as LinkIcon,
   X,
+  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -55,6 +56,7 @@ interface ModelHoverCardProps {
   isVerified?: boolean
   href: string
   modelId?: string // Add modelId for delete functionality
+  ipId?: string // Story Protocol IP Asset ID
 }
 
 export default function ModelHoverCard({
@@ -65,6 +67,7 @@ export default function ModelHoverCard({
   isVerified = false,
   href,
   modelId,
+  ipId,
 }: ModelHoverCardProps) {
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isPreviewImageDialogOpen, setPreviewImageDialogOpen] = useState(false)
@@ -275,6 +278,19 @@ export default function ModelHoverCard({
                   <Upload className="mr-2 h-4 w-4" />
                   Update Preview Image
                 </DropdownMenuItem>
+                {ipId && (
+                  <DropdownMenuItem className="cursor-pointer" asChild>
+                    <Link
+                      href={`https://aeneid.explorer.story.foundation/ipa/${ipId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      View on Story
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <AlertDialogTrigger asChild>
                   <DropdownMenuItem className="text-red-600 cursor-pointer">
                     <Trash2 className="mr-2 h-4 w-4" />

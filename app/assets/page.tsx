@@ -72,13 +72,13 @@ export default function AssetsPage() {
 
   return (
     <div
-      className="flex h-screen"
+      className="flex h-screen bg-slate-100"
       style={{ "--top-bar-height": topBarHeight } as React.CSSProperties}
     >
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl">
           <div className="mb-6">
             <h1 className="text-3xl font-semibold text-slate-800">Assets Library</h1>
             <p className="text-slate-600">Browse, select, and manage your Story Protocol assets.</p>
