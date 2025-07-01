@@ -308,8 +308,10 @@ export async function POST(req: NextRequest) {
       let webhookUrl: string
       const tunnelUrl = process.env.REPLICATE_WEBHOOK_TUNNEL_URL
       if (process.env.NODE_ENV === "development" && tunnelUrl) {
-        webhookUrl = `${tunnelUrl}/api/replicate-webhook`
+        console.log("Using tunnel URL:", tunnelUrl)
+        webhookUrl = `https://meerkat-leading-glider.ngrok-free.app/api/replicate-webhook`
       } else {
+        console.log("Using webhook host:", process.env.WEBHOOK_HOST)
         webhookUrl = `${process.env.WEBHOOK_HOST}/api/replicate-webhook`
       }
 

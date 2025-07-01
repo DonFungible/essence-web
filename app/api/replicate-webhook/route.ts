@@ -724,11 +724,8 @@ async function registerTrainedModelAsIP(
     const updateData: any = {
       ip_id: modelResult.ipId,
       story_model_tx_hash: modelResult.txHash,
+      story_parent_ip_ids: registeredImageIPs,
     }
-
-    // Store parent IPs and derivative transaction (always present for AI models)
-    updateData.story_parent_ip_ids = registeredImageIPs
-    updateData.story_derivative_tx_hash = derivativeTxHash
 
     console.log(
       `📝 [IP_REGISTRATION] Stored derivative relationship: ${registeredImageIPs.length} parent IPs with derivative tx: ${derivativeTxHash}`
