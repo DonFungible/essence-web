@@ -81,14 +81,6 @@ export const mockAssets: Asset[] = [
     tags: ["vintage", "car", "classic"],
     category: "Photos",
   },
-  {
-    id: "asset_010",
-    name: "Anime Landscape",
-    src: "/anime-fantasy-landscape.png", // Assuming this exists in public
-    alt: "A vibrant anime-style fantasy landscape",
-    tags: ["anime", "fantasy", "landscape"],
-    category: "Illustrations",
-  },
 ]
 
 export async function getAssets(): Promise<Asset[]> {

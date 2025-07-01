@@ -20,7 +20,7 @@
     "test:webhook:starting": "node scripts/test-webhook.js starting",
     "test:webhook:success": "node scripts/test-webhook.js succeeded",
     "tunnel": "node scripts/tunnel.js",
-    "tunnel:custom": "ngrok http 3000 --domain=lark-humorous-globally.ngrok-free.app",
+    "tunnel:custom": "ngrok http 3000 --domain=meerkat-leading-glider.ngrok-free.app",
     "tunnel:simple": "ngrok http 3000"
   },
   "dependencies": {

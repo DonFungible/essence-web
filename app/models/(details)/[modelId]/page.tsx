@@ -9,6 +9,7 @@ import ModelClientContent from "./model-client-content"
 import StyleReferenceGrid from "./style-reference-grid"
 import Sidebar from "@/components/sidebar"
 import TopBar from "@/components/top-bar"
+import PromptBar from "@/components/prompt-bar"
 import { Button } from "@/components/ui/button"
 import EditableDescription from "@/components/editable-description"
 import { type ModelType } from "@/lib/models-data"
@@ -107,9 +108,9 @@ export default function ModelPage({ params }: Props) {
   return (
     <div className="flex h-screen bg-slate-100">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
         <TopBar />
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl pb-32">
           <div className="max-w-7xl mx-auto">
             <header className="space-y-4 mb-8 relative">
               <div className="flex items-center">
@@ -176,6 +177,7 @@ export default function ModelPage({ params }: Props) {
             <ModelClientContent model={model} />
           </div>
         </main>
+        <PromptBar />
       </div>
     </div>
   )
