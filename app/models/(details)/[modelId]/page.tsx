@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowLeft, Cpu, Palette, Copy, ExternalLink } from "lucide-react"
+import { ArrowLeft, Cpu, Palette, ExternalLink } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import ModelClientContent from "./model-client-content"
@@ -65,23 +65,6 @@ export default function ModelPage({ params }: Props) {
     loadData()
   }, [params])
 
-  const handleCopyIpId = async () => {
-    if (model?.ipId) {
-      try {
-        await navigator.clipboard.writeText(model.ipId)
-        toast({
-          title: "IP Asset ID Copied",
-          description: "The IP Asset ID has been copied to your clipboard.",
-        })
-      } catch (error) {
-        toast({
-          title: "Copy Failed",
-          description: "Failed to copy IP Asset ID to clipboard.",
-          variant: "destructive",
-        })
-      }
-    }
-  }
   console.log({ model })
 
   // For now, assume all models are database models (can be edited)
@@ -146,39 +129,23 @@ export default function ModelPage({ params }: Props) {
 
               {/* IP Asset ID Section */}
               {model.ipId && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center">
-                    <Palette className="w-4 h-4 mr-2" />
-                    IP Asset ID
-                  </h3>
-                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg border">
-                    <code className="text-sm font-mono text-slate-700 bg-white px-2 py-1 rounded border flex-1">
-                      {model.ipId}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyIpId}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center">
+                    <Palette className="w-4 h-4 mr-2 text-slate-500" />
+                    <span className="text-sm font-medium text-slate-500">IP Asset ID:</span>
+                  </div>
+                  <code className="text-sm font-mono text-slate-700">{model.ipId}</code>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link
+                      href={`https://aeneid.explorer.story.foundation/ipa/${model.ipId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="flex items-center gap-2"
                     >
-                      <Copy className="w-4 h-4" />
-                      Copy
-                    </Button>
-                    <Button variant="outline" size="sm" asChild className="flex items-center gap-2">
-                      <Link
-                        href={`https://aeneid.explorer.story.foundation/ipa/${model.ipId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        View on Story Explorer
-                      </Link>
-                    </Button>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    This AI model is registered as an IP asset on Story Protocol, representing the
-                    intellectual property rights of the trained model.
-                  </p>
+                      <ExternalLink className="w-4 h-4" />
+                      View on Story Explorer
+                    </Link>
+                  </Button>
                 </div>
               )}
 
