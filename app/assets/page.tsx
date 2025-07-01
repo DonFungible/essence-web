@@ -47,6 +47,7 @@ function transformStoryAssetToAsset(storyAsset: StoryAsset): Asset {
       ...(storyAsset.rootIpIds.length > 0 ? ["derivative"] : ["original"]),
     ],
     category: "Story Assets",
+    ipId: storyAsset.ipId, // Include the Story Protocol IP Asset ID
   }
 }
 

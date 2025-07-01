@@ -5,6 +5,7 @@ export interface Asset {
   alt: string
   tags?: string[]
   category?: string // Added category for potential filtering
+  ipId?: string // Story Protocol IP Asset ID
 }
 
 export const mockAssets: Asset[] = [

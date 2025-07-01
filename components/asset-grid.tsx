@@ -3,7 +3,27 @@
 import { useState } from "react"
 import AssetItem from "./asset-item"
 import { Button } from "@/components/ui/button"
-import { ImageIcon } from "lucide-react"
+import { ImageIcon, Wand2, Loader2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useGenerateModel } from "@/hooks/use-model-generation"
+import { useRouter } from "next/navigation"
 import type { Asset } from "@/lib/assets-data"
 
 interface AssetGridProps {
@@ -12,8 +32,15 @@ interface AssetGridProps {
 
 export default function AssetGrid({ assets }: AssetGridProps) {
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set())
-  // isLoading state might be managed by a parent component if assets are fetched/filtered there
-  // const [isLoading, setIsLoading] = useState(false);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false)
+  const [modelConfig, setModelConfig] = useState({
+    trigger_word: "",
+    description: "",
+    training_steps: 300,
+  })
+
+  const generateModel = useGenerateModel()
+  const router = useRouter()
 
   const handleSelectAsset = (assetId: string) => {
     setSelectedAssets((prevSelected) => {
@@ -30,12 +57,56 @@ export default function AssetGrid({ assets }: AssetGridProps) {
 
   const handleCompileSelected = () => {
     if (selectedAssets.size === 0) {
-      alert("Please select at least one asset to compile.")
+      alert("Please select at least one asset to generate a model.")
       return
     }
+
+    // Check if any selected assets have IP IDs
     const selectedAssetDetails = assets.filter((asset) => selectedAssets.has(asset.id))
-    console.log("Compiling selected assets:", selectedAssetDetails)
-    alert(`Compiling ${selectedAssets.size} assets. Check console for details.`)
+    const assetsWithIpIds = selectedAssetDetails.filter((asset) => asset.ipId)
+
+    if (assetsWithIpIds.length === 0) {
+      alert("Selected assets must have IP IDs to generate a model.")
+      return
+    }
+
+    if (assetsWithIpIds.length < selectedAssetDetails.length) {
+      alert(
+        `Warning: Only ${assetsWithIpIds.length} of ${selectedAssetDetails.length} selected assets have IP IDs and will be used for model generation.`
+      )
+    }
+
+    setIsConfigDialogOpen(true)
+  }
+
+  const handleGenerateModel = async () => {
+    if (!modelConfig.trigger_word.trim()) {
+      alert("Please enter a trigger word for your model.")
+      return
+    }
+
+    const selectedAssetDetails = assets.filter((asset) => selectedAssets.has(asset.id))
+    const assetsWithIpIds = selectedAssetDetails.filter((asset) => asset.ipId)
+
+    try {
+      const result = await generateModel.mutateAsync({
+        selectedAssets: assetsWithIpIds,
+        modelConfig: {
+          trigger_word: modelConfig.trigger_word.trim(),
+          description: modelConfig.description.trim() || undefined,
+          training_steps: modelConfig.training_steps,
+        },
+      })
+
+      setIsConfigDialogOpen(false)
+      setSelectedAssets(new Set())
+      setModelConfig({ trigger_word: "", description: "", training_steps: 300 })
+
+      // Redirect to models page to see the training progress
+      router.push("/models")
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   }
 
   // Assuming loading state is handled by parent if assets are fetched/filtered there
@@ -62,7 +133,7 @@ export default function AssetGrid({ assets }: AssetGridProps) {
             {selectedAssets.size} asset{selectedAssets.size === 1 ? "" : "s"} selected
           </p>
           <Button onClick={handleCompileSelected} size="sm" variant="default">
-            Compile Selected Images
+            Generate Model
           </Button>
         </div>
       )}
@@ -76,6 +147,102 @@ export default function AssetGrid({ assets }: AssetGridProps) {
           />
         ))}
       </div>
+
+      {/* Model Configuration Dialog */}
+      <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generate AI Model</DialogTitle>
+            <DialogDescription>
+              Configure your AI model settings. The model will be trained using{" "}
+              {selectedAssets.size} selected IP assets.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="trigger_word">Model Name / Trigger Word</Label>
+              <Input
+                id="trigger_word"
+                placeholder="e.g., MyUniqueStyle, ArtByYourName"
+                value={modelConfig.trigger_word}
+                onChange={(e) => setModelConfig({ ...modelConfig, trigger_word: e.target.value })}
+                className="mt-1"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                A unique word to activate your model. No spaces allowed.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description (Optional)</Label>
+              <Textarea
+                id="description"
+                placeholder="Describe your model's style or purpose..."
+                value={modelConfig.description}
+                onChange={(e) => setModelConfig({ ...modelConfig, description: e.target.value })}
+                className="mt-1"
+                rows={3}
+                maxLength={200}
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                {modelConfig.description.length}/200 characters
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="training_steps">Training Steps</Label>
+              <Select
+                value={modelConfig.training_steps.toString()}
+                onValueChange={(value) =>
+                  setModelConfig({ ...modelConfig, training_steps: parseInt(value) })
+                }
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="149">149</SelectItem>
+                  <SelectItem value="300">300</SelectItem>
+                  <SelectItem value="400">400</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
+                  <SelectItem value="600">600</SelectItem>
+                  <SelectItem value="700">700</SelectItem>
+                  <SelectItem value="800">800</SelectItem>
+                  <SelectItem value="900">900</SelectItem>
+                  <SelectItem value="1000">1000</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsConfigDialogOpen(false)}
+              disabled={generateModel.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleGenerateModel}
+              disabled={generateModel.isPending || !modelConfig.trigger_word.trim()}
+            >
+              {generateModel.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  Generate Model
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

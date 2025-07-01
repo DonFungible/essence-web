@@ -133,8 +133,6 @@ export async function getFirstStyleReferenceImage(modelName: string): Promise<st
  */
 function getDefaultStyleImages(): StyleReferenceImage[] {
   return [
-    { src: "/abstract-product.png", alt: "Abstract product style example" },
-    { src: "/anime-fantasy-landscape.png", alt: "Anime fantasy landscape style example" },
     { src: "/vintage-white-car.png", alt: "Vintage white car style example" },
     { src: "/minimalist-animation.png", alt: "Minimalist animation style example" },
   ]
