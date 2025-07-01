@@ -27,6 +27,12 @@ export interface GenerationRecord {
   raw: boolean
   seed?: number
   image_prompt?: string
+  // IP Asset related fields
+  ip_id?: string
+  story_image_tx_hash?: string
+  story_derivative_tx_hash?: string
+  story_parent_model_ip_id?: string
+  story_registration_status?: string
 }
 
 // Query Keys

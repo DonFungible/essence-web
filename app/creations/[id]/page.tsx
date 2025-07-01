@@ -234,12 +234,12 @@ export default function ImageDetailPage({ params }: ImageDetailPageProps) {
                     </div>
                   )}
 
-                  {/* IP Asset ID for Generated Images */}
+                  {/* AI Model IP Asset ID for Generated Images */}
                   {!isGalleryImage && generatedImage && modelData?.ip_id && (
                     <div className="space-y-1 mb-5">
                       <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center">
-                        <Tag className="w-4 h-4 mr-2" />
-                        IP Asset ID
+                        <Cpu className="w-4 h-4 mr-2" />
+                        AI Model IP Asset
                       </h2>
                       <div className="flex items-center gap-2">
                         <p className="text-slate-700 text-xs font-mono bg-slate-100 p-2 rounded border flex-1">
@@ -248,14 +248,73 @@ export default function ImageDetailPage({ params }: ImageDetailPageProps) {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => navigator.clipboard.writeText(modelData.ip_id)}
+                          onClick={() => {
+                            if (modelData?.ip_id) {
+                              navigator.clipboard.writeText(modelData.ip_id)
+                            }
+                          }}
                           className="h-8 w-8 p-0"
                         >
                           <Copy className="w-3 h-3" />
                         </Button>
+                        <Button size="sm" variant="outline" asChild className="h-8 w-8 p-0">
+                          <Link
+                            href={`https://aeneid.explorer.story.foundation/ipa/${modelData.ip_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </Link>
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-slate-500">
+                          Story Protocol IP Asset for the AI model
+                        </p>
+                        <Button size="sm" variant="link" asChild className="h-auto p-0 text-xs">
+                          <Link href={`/models/${generatedImage?.model_id}`}>
+                            View Model Details
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Generated Image IP Asset ID */}
+                  {!isGalleryImage && generatedImage?.ip_id && (
+                    <div className="space-y-1 mb-5">
+                      <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center">
+                        <Palette className="w-4 h-4 mr-2" />
+                        Image IP Asset
+                      </h2>
+                      <div className="flex items-center gap-2">
+                        <p className="text-slate-700 text-xs font-mono bg-slate-100 p-2 rounded border flex-1">
+                          {generatedImage.ip_id}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (generatedImage?.ip_id) {
+                              navigator.clipboard.writeText(generatedImage.ip_id)
+                            }
+                          }}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                        <Button size="sm" variant="outline" asChild className="h-8 w-8 p-0">
+                          <Link
+                            href={`https://aeneid.explorer.story.foundation/ipa/${generatedImage.ip_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </Link>
+                        </Button>
                       </div>
                       <p className="text-xs text-slate-500">
-                        Story Protocol IP Asset representing this AI model
+                        Story Protocol IP Asset for this generated image
                       </p>
                     </div>
                   )}
@@ -377,11 +436,6 @@ export default function ImageDetailPage({ params }: ImageDetailPageProps) {
                   <Button variant="outline" className="w-full">
                     Add to Collection
                   </Button>
-                  {!isGalleryImage && (
-                    <Button variant="outline" className="w-full" asChild>
-                      <Link href={`/models/${generatedImage?.model_id}`}>View Model</Link>
-                    </Button>
-                  )}
                   <Button
                     variant="outline"
                     className="w-full text-red-600 hover:bg-red-50 hover:text-red-700 border-red-300 hover:border-red-400"

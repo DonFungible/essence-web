@@ -33,6 +33,8 @@ import {
   Clock,
   MoreVertical,
   Trash2,
+  Eye,
+  ExternalLink,
 } from "lucide-react"
 import { useDeleteGeneration } from "@/hooks/use-delete-model"
 import { useState } from "react"
@@ -65,6 +67,25 @@ function GenerationDeleteButton({ generation }: { generation: GenerationRecord }
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={`/creations/${generation.id}`} className="cursor-pointer">
+                <Eye className="mr-2 h-4 w-4" />
+                View Details
+              </Link>
+            </DropdownMenuItem>
+            {generation.ip_id && (
+              <DropdownMenuItem asChild>
+                <Link
+                  href={`https://aeneid.explorer.story.foundation/ipa/${generation.ip_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="cursor-pointer"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View on Explorer
+                </Link>
+              </DropdownMenuItem>
+            )}
             <AlertDialogTrigger asChild>
               <DropdownMenuItem className="text-red-600 cursor-pointer">
                 <Trash2 className="mr-2 h-4 w-4" />

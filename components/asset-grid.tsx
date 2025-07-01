@@ -46,7 +46,9 @@ export default function AssetGrid({ assets }: AssetGridProps) {
       <div className="flex flex-col justify-center items-center h-64 text-center p-4 border border-dashed rounded-lg border-slate-300">
         <ImageIcon className="h-12 w-12 text-slate-400 mb-4" />
         <h3 className="text-xl font-semibold text-slate-700 mb-1">No Assets Found</h3>
-        <p className="text-slate-500">No assets match your current filters, or your library is empty.</p>
+        <p className="text-slate-500">
+          No assets match your current filters, or your library is empty.
+        </p>
       </div>
     )
   }
@@ -54,7 +56,7 @@ export default function AssetGrid({ assets }: AssetGridProps) {
   return (
     <div>
       {selectedAssets.size > 0 && (
-        <div className="mb-6 p-4 bg-slate-100 border border-slate-300 rounded-lg flex items-center justify-between sticky top-[calc(var(--top-bar-height,64px)+var(--filter-bar-height,120px))] z-20 shadow-sm">
+        <div className="mb-6 p-4 bg-slate-100 border border-slate-300 rounded-lg flex items-center justify-between top-[calc(var(--top-bar-height,64px)+var(--filter-bar-height,120px))] z-20 shadow-sm">
           {/* Adjusted sticky top value if TopBar and FilterBar have fixed heights */}
           <p className="text-sm font-medium text-slate-700">
             {selectedAssets.size} asset{selectedAssets.size === 1 ? "" : "s"} selected

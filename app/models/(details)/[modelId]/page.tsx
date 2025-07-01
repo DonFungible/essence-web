@@ -163,7 +163,7 @@ export default function ModelPage({ params }: Props) {
             {/* Style Reference Section */}
             <section className="mb-10 rounded-xl border p-6 bg-slate-50">
               <div className="flex items-center mb-4">
-                <h2 className="text-2xl font-semibold text-slate-700">Style Reference</h2>
+                <h2 className="text-2xl font-semibold text-slate-700">Training Images</h2>
                 <span className="ml-2 text-sm text-slate-500">
                   ({styleReferenceImages.length} image{styleReferenceImages.length !== 1 ? "s" : ""}
                   )
