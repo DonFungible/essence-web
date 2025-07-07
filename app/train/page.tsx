@@ -78,6 +78,11 @@ interface ImageMetadata {
   description: string
 }
 
+// Helper function to remove file extension from filename
+const removeFileExtension = (filename: string): string => {
+  return filename.replace(/\.[^/.]+$/, "")
+}
+
 export default function TrainModelPage() {
   const router = useRouter()
   const { authenticated, user } = usePrivy()
@@ -365,7 +370,7 @@ export default function TrainModelPage() {
             // Upload files using pre-signed URLs
             console.log("📤 Starting file uploads...")
             const nftMetadata = images.map((file, index) => ({
-              name: imageMetadata[index]?.name?.trim() || file.name,
+              name: imageMetadata[index]?.name?.trim() || removeFileExtension(file.name),
               description: imageMetadata[index]?.description?.trim() || undefined,
             }))
             const { uploadedFiles, zipFileInfo } = await uploadFiles(
@@ -836,11 +841,11 @@ export default function TrainModelPage() {
                                       }
                                       setImageMetadata(newMetadata)
                                     }}
-                                    placeholder={file.name}
+                                    placeholder={removeFileExtension(file.name)}
                                     className="mt-1"
                                   />
                                   <p className="text-xs text-slate-500 mt-1">
-                                    Leave empty to use filename: {file.name}
+                                    Leave empty to use: {removeFileExtension(file.name)}
                                   </p>
                                 </div>
 
