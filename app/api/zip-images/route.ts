@@ -570,7 +570,7 @@ export async function POST(req: NextRequest) {
             input_images: urlData.publicUrl,
           },
           destination: `${process.env.REPLICATE_USERNAME}/${trainingJobId}`,
-          webhook: `${process.env.WEBHOOK_HOST}/api/replicate-webhook`,
+          webhook: `${process.env.REPLICATE_WEBHOOK_TUNNEL_URL}/api/replicate-webhook`,
           webhook_events_filter: ["start", "output", "logs", "completed"],
         }),
       })

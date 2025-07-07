@@ -13,12 +13,12 @@ const filterItems = [
   {
     name: "Art Styles",
     description: "Specific art movements",
-    imgSrc: "/anime-fantasy-landscape.png",
+    imgSrc: "/surreal-landscape-mirror.png",
   },
   {
     name: "Style Collaborations",
     description: "Blended artistic styles",
-    imgSrc: "/pastel-architecture-horse.png",
+    imgSrc: "/vintage-handheld-device.png",
   },
 ]
 
@@ -30,7 +30,7 @@ const FilterBar = () => {
           <Button
             key={item.name}
             variant="outline"
-            className={`h-auto p-3 flex items-start space-x-3 rounded-lg shadow-sm hover:shadow-md transition-shadow ${
+            className={`h-auto p-3 flex items-start rounded-lg shadow-sm hover:shadow-md transition-shadow ${
               item.active ? "bg-slate-50 border-slate-300" : "bg-white border-slate-200"
             }`}
           >
@@ -39,7 +39,7 @@ const FilterBar = () => {
               alt={item.name}
               width={40}
               height={40}
-              className="rounded-md object-cover"
+              className="rounded-md object-contain"
               unoptimized
             />
             <div className="text-left">

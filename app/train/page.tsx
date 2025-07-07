@@ -678,48 +678,6 @@ export default function TrainModelPage() {
                   </p>
                 )}
               </div>
-
-              {/* ZIP Creation Progress */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    {trainingProgress.stage === "registration" &&
-                    trainingProgress.registrationProgress?.zipProgress
-                      ? "📦 Creating Training Dataset"
-                      : trainingProgress.stage === "training" ||
-                        trainingProgress.stage === "complete"
-                      ? "✅ Dataset Created"
-                      : "⏳ Dataset Pending"}
-                  </span>
-                </div>
-                <Progress
-                  value={
-                    trainingProgress.stage === "registration" &&
-                    trainingProgress.registrationProgress?.zipProgress
-                      ? 100
-                      : trainingProgress.stage === "training" ||
-                        trainingProgress.stage === "complete"
-                      ? 100
-                      : 0
-                  }
-                  className="h-2"
-                />
-              </div>
-
-              {/* Training Progress */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    {trainingProgress.stage === "training"
-                      ? "🚀 Starting Training"
-                      : "⏳ Training Pending"}
-                  </span>
-                </div>
-                <Progress value={trainingProgress.stage === "training" ? 50 : 0} className="h-2" />
-                {trainingProgress.stage === "training" && (
-                  <p className="text-xs text-slate-500">Submitting to training queue...</p>
-                )}
-              </div>
             </div>
           )}
         </div>
