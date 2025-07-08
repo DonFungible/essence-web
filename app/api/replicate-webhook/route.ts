@@ -629,7 +629,8 @@ async function registerTrainedModelAsIP(
 
     console.log(`📝 [IP_REGISTRATION] Parent IP IDs from assets flow:`, parentIPs)
 
-    // Create metadata for the trained model
+    // Create metadata for the trained model following IPA Metadata Standard
+    // Reference: https://docs.story.foundation/concepts/ip-asset/ipa-metadata-standard
     const modelMetadata = {
       title: `AI Model: ${triggerWord}`,
       description: `AI model trained on ${
@@ -637,7 +638,24 @@ async function registerTrainedModelAsIP(
       } images. Trigger word: ${triggerWord}. Generated using ${
         trainingJob.captioning || "automatic"
       } captioning with ${trainingJob.training_steps || 300} training steps.`,
-      ipType: "model" as const,
+      createdAt: Math.floor(Date.now() / 1000).toString(), // Unix timestamp
+      creators: [
+        {
+          name: "Essence Web Training System",
+          address: "0x90B53D67250c45973E81a6F832d6c4496108ac39", // Backend wallet address
+          contributionPercent: 100,
+        },
+      ],
+      ipType: "AI Model" as const, // Follow the documentation pattern
+      aiMetadata: {
+        modelType: "Image Generation",
+        triggerWord: triggerWord,
+        trainingSteps: trainingJob.training_steps || 300,
+        captioningMethod: trainingJob.captioning || "automatic",
+        replicateJobId: replicateJobId,
+        parentIPsCount: registeredImageIPs.length,
+      },
+      tags: ["AI Model", "Image Generation", "Derivative Work", triggerWord],
       attributes: [
         {
           trait_type: "Model Type",
@@ -660,8 +678,16 @@ async function registerTrainedModelAsIP(
           value: (trainingJob.training_images?.length || 0).toString(),
         },
         {
+          trait_type: "Parent IP Assets",
+          value: registeredImageIPs.length.toString(),
+        },
+        {
           trait_type: "Replicate Job ID",
           value: replicateJobId,
+        },
+        {
+          trait_type: "Training Flow",
+          value: trainingImageIPs.length > 0 ? "Individual Images" : "Assets Collection",
         },
       ],
     }
@@ -783,7 +809,24 @@ async function registerTrainedModelAsIP(
       name: error.name,
     })
 
-    // Update job with failed status - IP registration failed, so ip_id remains null
+    // Mark for retry - store error information for later retry attempts
+    const retryData: any = {
+      ip_registration_failed: true,
+      ip_registration_error: error.message || "Unknown error",
+      ip_registration_failed_at: new Date().toISOString(),
+    }
+
+    // Store error information for retry purposes
+    try {
+      await supabase.from("training_jobs").update(retryData).eq("replicate_job_id", replicateJobId)
+
+      console.log(
+        `⚠️ [IP_REGISTRATION] Marked job ${replicateJobId} for retry - ip_id remains null`
+      )
+    } catch (updateError) {
+      console.error(`❌ [IP_REGISTRATION] Failed to update retry status:`, updateError)
+    }
+
     console.log(
       "❌ [IP_REGISTRATION] IP registration failed - ip_id will remain null for this training job"
     )

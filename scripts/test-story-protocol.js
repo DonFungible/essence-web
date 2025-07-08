@@ -87,7 +87,7 @@ async function testStoryProtocol() {
     const { getStoryBalance } = require("../lib/story-protocol")
 
     // Use a test address (Story faucet address)
-    const testAddress = "0x0000000000000000000000000000000000000000"
+    const testAddress = "0x90B53D67250c45973E81a6F832d6c4496108ac39"
 
     const balanceResult = await getStoryBalance(testAddress)
 

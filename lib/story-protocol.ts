@@ -174,8 +174,25 @@ export async function canUserTrain(address: string): Promise<{
 export interface IPMetadata {
   title: string
   description?: string
-  ipType: "image" | "model"
+  createdAt?: string
+  creators?: Array<{
+    name: string
+    address: string
+    contributionPercent: number
+  }>
+  ipType: "image" | "model" | "AI Model" | "AI Agent"
   image?: string
+  aiMetadata?: {
+    modelType?: string
+    triggerWord?: string
+    trainingSteps?: number
+    captioningMethod?: string
+    replicateJobId?: string
+    parentIPsCount?: number
+    characterFileUrl?: string
+    characterFileHash?: string
+  }
+  tags?: string[]
   attributes?: Array<{
     trait_type: string
     value: string
