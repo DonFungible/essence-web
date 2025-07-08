@@ -586,16 +586,35 @@ async function registerTrainedModelAsIP(
       training_images_count: trainingJob.training_images?.length || 0,
     })
 
-    // Get registered training image IP assets
-    const registeredImageIPs =
+    // Get registered training image IP assets - handle both flows
+    let registeredImageIPs: string[] = []
+
+    // Flow 1: Individual images uploaded via /train page (stored in training_images table)
+    const trainingImageIPs =
       trainingJob.training_images
         ?.filter((img: any) => img.story_ip_id && img.story_registration_status === "registered")
         ?.map((img: any) => img.story_ip_id) || []
 
-    console.log(
-      `📝 [IP_REGISTRATION] Found ${registeredImageIPs.length} registered training image IPs:`,
-      registeredImageIPs
-    )
+    // Flow 2: Assets from /assets page (stored in story_parent_ip_ids)
+    const parentIPs = trainingJob.story_parent_ip_ids || []
+
+    if (trainingImageIPs.length > 0) {
+      // Use training images flow
+      registeredImageIPs = trainingImageIPs
+      console.log(
+        `📝 [IP_REGISTRATION] Using training images flow: Found ${registeredImageIPs.length} registered training image IPs:`,
+        registeredImageIPs
+      )
+    } else if (parentIPs.length > 0) {
+      // Use assets flow
+      registeredImageIPs = parentIPs
+      console.log(
+        `📝 [IP_REGISTRATION] Using assets flow: Found ${registeredImageIPs.length} parent IP assets:`,
+        registeredImageIPs
+      )
+    } else {
+      console.log(`📝 [IP_REGISTRATION] No IPs found in either flow`)
+    }
 
     // Log all training images for debugging
     console.log(
@@ -607,6 +626,8 @@ async function registerTrainedModelAsIP(
         status: img.story_registration_status,
       })) || []
     )
+
+    console.log(`📝 [IP_REGISTRATION] Parent IP IDs from assets flow:`, parentIPs)
 
     // Create metadata for the trained model
     const modelMetadata = {
@@ -650,19 +671,28 @@ async function registerTrainedModelAsIP(
     let modelResult: any
     let derivativeTxHash: string | null = null
 
-    // AI models must ALWAYS be derivatives of training images
+    // AI models must ALWAYS be derivatives of parent IP assets
     if (registeredImageIPs.length === 0) {
+      console.error(`❌ [IP_REGISTRATION] No parent IP assets found for derivative registration.`)
+      console.error(`❌ [IP_REGISTRATION] Checked both flows:`, {
+        trainingImagesFlow: trainingImageIPs.length,
+        assetsFlow: parentIPs.length,
+        trainingImagesCount: trainingJob.training_images?.length || 0,
+        hasParentIPs: !!trainingJob.story_parent_ip_ids,
+      })
       console.error(
-        `❌ [IP_REGISTRATION] No training images registered as IP assets. Cannot register AI model.`
-      )
-      console.error(
-        `❌ [IP_REGISTRATION] AI models must be derivatives of training images. Aborting registration.`
+        `❌ [IP_REGISTRATION] AI models must be derivatives of parent IP assets. Aborting registration.`
       )
       return
     }
 
     console.log(
-      `🔗 [IP_REGISTRATION] Registering AI model as derivative of ${registeredImageIPs.length} training image IPs`
+      `🔗 [IP_REGISTRATION] Registering AI model as derivative of ${registeredImageIPs.length} parent IP assets`
+    )
+    console.log(
+      `🔗 [IP_REGISTRATION] Using ${
+        trainingImageIPs.length > 0 ? "training images" : "assets"
+      } flow`
     )
 
     try {
@@ -688,7 +718,7 @@ async function registerTrainedModelAsIP(
           modelResult.error
         )
         console.error(
-          `❌ [IP_REGISTRATION] AI models must be derivatives. No fallback to standalone registration.`
+          `❌ [IP_REGISTRATION] AI models must be derivatives of parent IP assets. No fallback to standalone registration.`
         )
         return
       }
@@ -705,7 +735,7 @@ async function registerTrainedModelAsIP(
         stack: error.stack,
       })
       console.error(
-        `❌ [IP_REGISTRATION] AI models must be derivatives. No fallback to standalone registration.`
+        `❌ [IP_REGISTRATION] AI models must be derivatives of parent IP assets. No fallback to standalone registration.`
       )
       return
     }

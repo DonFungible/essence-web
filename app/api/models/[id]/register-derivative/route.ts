@@ -7,7 +7,7 @@ import {
   getSPGNftContract,
   mintLicenseTokens,
   mintAndRegisterDerivativeWithLicenseTokens,
-  registerDerivativeWithLicenseTerms,
+  mintAndRegisterIpAndMakeDerivative,
 } from "@/lib/story-protocol"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
@@ -91,19 +91,44 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       })
     }
 
-    // Get registered training image IP assets
-    const registeredImageIPs =
+    // Get registered training image IP assets - handle both flows
+    let registeredImageIPs: string[] = []
+
+    // Flow 1: Individual images uploaded via /train page (stored in training_images table)
+    const trainingImageIPs =
       trainingJob.training_images
         ?.filter((img: any) => img.story_ip_id && img.story_registration_status === "registered")
         ?.map((img: any) => img.story_ip_id) || []
 
-    console.log(`Found ${registeredImageIPs.length} registered training image IPs`)
+    // Flow 2: Assets from /assets page (stored in story_parent_ip_ids)
+    const parentIPs = trainingJob.story_parent_ip_ids || []
+
+    if (trainingImageIPs.length > 0) {
+      // Use training images flow
+      registeredImageIPs = trainingImageIPs
+      console.log(
+        `📝 Using training images flow: Found ${registeredImageIPs.length} registered training image IPs`
+      )
+    } else if (parentIPs.length > 0) {
+      // Use assets flow
+      registeredImageIPs = parentIPs
+      console.log(`📝 Using assets flow: Found ${registeredImageIPs.length} parent IP assets`)
+    } else {
+      console.log(`📝 No IPs found in either flow`)
+    }
 
     if (registeredImageIPs.length === 0) {
       return NextResponse.json(
         {
-          error: "No registered training images found. Cannot register model as derivative.",
-          details: "Training images must be registered as IP assets first",
+          error: "No parent IP assets found. Cannot register model as derivative.",
+          details:
+            "Either training images must be registered as IP assets or assets from /assets page must have IP IDs",
+          flowsChecked: {
+            trainingImagesFlow: trainingImageIPs.length,
+            assetsFlow: parentIPs.length,
+            trainingImagesCount: trainingJob.training_images?.length || 0,
+            hasParentIPs: !!trainingJob.story_parent_ip_ids,
+          },
         },
         { status: 400 }
       )
@@ -153,7 +178,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     let derivativeTxHash: string | null = null
 
     console.log(
-      `📝 Registering model as derivative IP of ${registeredImageIPs.length} training images`
+      `📝 Registering model as derivative IP of ${registeredImageIPs.length} parent IP assets`
+    )
+    console.log(
+      `📝 Using ${trainingImageIPs.length > 0 ? "training images" : "assets"} flow for registration`
     )
 
     try {
@@ -210,7 +238,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           console.error(`❌ Failed to register derivative IP:`, modelResult.error)
           // Fall back to derivative registration with license terms instead of tokens
           console.log(`🔄 Falling back to derivative registration with license terms...`)
-          modelResult = await registerDerivativeWithLicenseTerms({
+          modelResult = await mintAndRegisterIpAndMakeDerivative({
             spgNftContract: spgContract,
             parentIpIds: registeredImageIPs,
             licenseTermsId: "1", // Default PIL license terms
@@ -220,7 +248,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       } else {
         // Step 2b: Register as derivative using license terms directly (no tokens needed)
         console.log(`🔗 Registering derivative IP with license terms (no tokens required)`)
-        modelResult = await registerDerivativeWithLicenseTerms({
+        modelResult = await mintAndRegisterIpAndMakeDerivative({
           spgNftContract: spgContract,
           parentIpIds: registeredImageIPs,
           licenseTermsId: "1", // Default PIL license terms
