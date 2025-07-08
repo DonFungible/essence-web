@@ -178,7 +178,8 @@ const ImageGridItem = ({ image }: { image: (typeof images)[0] }) => {
   const [isHovered, setIsHovered] = useState(false)
 
   return (
-    <Link href={`/image/${image.id}`} passHref>
+    // <Link href={`/image/${image.id}`} passHref>
+    <div>
       <div
         className="relative rounded-xl overflow-hidden group cursor-pointer shadow-sm hover:shadow-lg transition-shadow duration-300 h-full"
         onMouseEnter={() => setIsHovered(true)}
@@ -223,7 +224,7 @@ const ImageGridItem = ({ image }: { image: (typeof images)[0] }) => {
           </div>
         )}
       </div>
-    </Link>
+    </div>
   )
 }
 
