@@ -15,7 +15,7 @@ function validateEnvironment() {
     .map(([key]) => key)
 
   if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`)
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`)
   }
 
   return required
@@ -24,17 +24,13 @@ function validateEnvironment() {
 // Create authenticated Supabase client
 function createAuthenticatedSupabaseClient() {
   const env = validateEnvironment()
-  
-  return createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL!,
-    env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: { 
-        autoRefreshToken: false, 
-        persistSession: false 
-      },
-    }
-  )
+
+  return createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -49,6 +45,35 @@ export async function POST(req: NextRequest) {
 
     if (!trainingJobId) {
       return NextResponse.json({ error: "Training job ID is required" }, { status: 400 })
+    }
+
+    // Test Supabase connection and bucket access first
+    const supabase = createAuthenticatedSupabaseClient()
+
+    console.log(`🔍 Testing Supabase storage access...`)
+    try {
+      // Test bucket access by listing contents
+      const { data: testList, error: testError } = await supabase.storage
+        .from("assets")
+        .list("", { limit: 1 })
+
+      if (testError) {
+        console.error("❌ Supabase storage test failed:", testError)
+        return NextResponse.json(
+          {
+            error: `Storage access failed: ${testError.message}. Please check bucket permissions.`,
+          },
+          { status: 503 }
+        )
+      }
+
+      console.log(`✅ Supabase storage access verified`)
+    } catch (storageError) {
+      console.error("❌ Supabase storage connection failed:", storageError)
+      return NextResponse.json(
+        { error: "Unable to connect to storage service. Please try again later." },
+        { status: 503 }
+      )
     }
 
     // Validate files
@@ -80,9 +105,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Total images size exceeds 500MB limit." }, { status: 400 })
     }
 
-    console.log(`🔐 Generating pre-signed URLs for ${files.length} files (training job: ${trainingJobId})`)
-
-    const supabase = createAuthenticatedSupabaseClient()
+    console.log(
+      `🔐 Generating pre-signed URLs for ${files.length} files (training job: ${trainingJobId})`
+    )
 
     // Generate pre-signed URLs for each file
     const uploadUrls: Array<{
@@ -114,15 +139,41 @@ export async function POST(req: NextRequest) {
         if (uploadError) {
           console.error(`Error generating upload URL for ${file.name}:`, uploadError)
           return NextResponse.json(
-            { error: `Failed to generate upload URL for ${file.name}` },
+            { error: `Failed to generate upload URL for ${file.name}: ${uploadError.message}` },
+            { status: 500 }
+          )
+        }
+
+        // Validate the generated URL
+        if (!uploadData?.signedUrl) {
+          console.error(`No signed URL returned for ${file.name}`)
+          return NextResponse.json(
+            { error: `Invalid upload URL generated for ${file.name}` },
+            { status: 500 }
+          )
+        }
+
+        // Validate URL format
+        try {
+          new URL(uploadData.signedUrl)
+        } catch (urlError) {
+          console.error(`Invalid URL format for ${file.name}:`, uploadData.signedUrl)
+          return NextResponse.json(
+            { error: `Malformed upload URL for ${file.name}` },
             { status: 500 }
           )
         }
 
         // Get public URL for the file
-        const { data: publicUrlData } = supabase.storage
-          .from("assets")
-          .getPublicUrl(storagePath)
+        const { data: publicUrlData } = supabase.storage.from("assets").getPublicUrl(storagePath)
+
+        if (!publicUrlData?.publicUrl) {
+          console.error(`No public URL generated for ${file.name}`)
+          return NextResponse.json(
+            { error: `Failed to generate public URL for ${file.name}` },
+            { status: 500 }
+          )
+        }
 
         uploadUrls.push({
           fileName: storageFileName,
@@ -134,11 +185,17 @@ export async function POST(req: NextRequest) {
           contentType: file.type,
         })
 
-        console.log(`✅ Generated upload URL for ${file.name}`)
+        console.log(
+          `✅ Generated upload URL for ${file.name} - URL length: ${uploadData.signedUrl.length}`
+        )
       } catch (error) {
         console.error(`Exception generating URL for ${file.name}:`, error)
         return NextResponse.json(
-          { error: `Failed to generate upload URL for ${file.name}` },
+          {
+            error: `Failed to generate upload URL for ${file.name}: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+          },
           { status: 500 }
         )
       }
@@ -156,15 +213,10 @@ export async function POST(req: NextRequest) {
 
     if (zipUploadError) {
       console.error("Error generating ZIP upload URL:", zipUploadError)
-      return NextResponse.json(
-        { error: "Failed to generate ZIP upload URL" },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: "Failed to generate ZIP upload URL" }, { status: 500 })
     }
 
-    const { data: zipPublicUrlData } = supabase.storage
-      .from("models")
-      .getPublicUrl(zipStoragePath)
+    const { data: zipPublicUrlData } = supabase.storage.from("models").getPublicUrl(zipStoragePath)
 
     console.log(`✅ Generated ${files.length} image upload URLs and 1 ZIP upload URL`)
 
@@ -184,7 +236,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "Failed to generate upload URLs",
-        details: error instanceof Error ? error.message : 'Unknown error occurred',
+        details: error instanceof Error ? error.message : "Unknown error occurred",
       },
       { status: 500 }
     )

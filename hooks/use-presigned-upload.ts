@@ -43,6 +43,43 @@ export function usePresignedUpload() {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  // Validate presigned URL response
+  const validateUploadResponse = (response: PresignedUrlResponse): void => {
+    if (!response.success) {
+      throw new Error("Upload URL generation failed")
+    }
+
+    if (!response.uploadUrls || !Array.isArray(response.uploadUrls)) {
+      throw new Error("Invalid upload URLs response")
+    }
+
+    if (!response.zipUpload) {
+      throw new Error("Missing ZIP upload configuration")
+    }
+
+    // Validate each upload URL
+    for (const upload of response.uploadUrls) {
+      if (!upload.uploadUrl || !upload.publicUrl) {
+        throw new Error(`Invalid upload configuration for ${upload.originalName}`)
+      }
+
+      try {
+        new URL(upload.uploadUrl)
+        new URL(upload.publicUrl)
+      } catch (error) {
+        throw new Error(`Malformed URL for ${upload.originalName}`)
+      }
+    }
+
+    // Validate ZIP upload URL
+    try {
+      new URL(response.zipUpload.uploadUrl)
+      new URL(response.zipUpload.publicUrl)
+    } catch (error) {
+      throw new Error("Malformed ZIP upload URL")
+    }
+  }
+
   // Generate pre-signed URLs
   const generateUploadUrls = async (
     files: File[],
@@ -53,6 +90,8 @@ export function usePresignedUpload() {
       size: file.size,
       type: file.type,
     }))
+
+    console.log(`🔐 Requesting upload URLs for ${files.length} files...`)
 
     const response = await fetch("/api/upload-presigned", {
       method: "POST",
@@ -67,48 +106,130 @@ export function usePresignedUpload() {
 
     if (!response.ok) {
       const errorData = await response.json()
+      console.error("❌ Upload URL generation failed:", errorData)
       throw new Error(errorData.error || "Failed to generate upload URLs")
     }
 
-    return response.json()
+    const result = await response.json()
+
+    // Validate the response before returning
+    try {
+      validateUploadResponse(result)
+      console.log(`✅ Generated and validated ${result.uploadUrls.length} upload URLs`)
+    } catch (validationError) {
+      console.error("❌ Upload URL validation failed:", validationError)
+      throw validationError
+    }
+
+    return result
   }
 
   // Upload a single file using pre-signed URL
   const uploadFileToPresignedUrl = async (
     file: File,
     uploadUrl: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    maxRetries: number = 3
   ): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
+    let lastError: Error | null = null
 
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100)
-          onProgress?.(progress)
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`📤 Upload attempt ${attempt}/${maxRetries} for ${file.name}`)
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          let progressReported = false
+
+          // Set timeout to 5 minutes for large files
+          const timeout = 5 * 60 * 1000 // 5 minutes
+          const timeoutId = setTimeout(() => {
+            xhr.abort()
+            reject(new Error(`Upload timeout after ${timeout / 1000} seconds`))
+          }, timeout)
+
+          xhr.upload.addEventListener("progress", (event) => {
+            if (event.lengthComputable) {
+              const progress = Math.round((event.loaded / event.total) * 100)
+              onProgress?.(progress)
+              progressReported = true
+            }
+          })
+
+          xhr.addEventListener("load", () => {
+            clearTimeout(timeoutId)
+            if (xhr.status === 200 || xhr.status === 201) {
+              console.log(`✅ Upload successful for ${file.name} (${xhr.status})`)
+              resolve()
+            } else {
+              const errorMsg = `Upload failed with HTTP ${xhr.status}: ${xhr.statusText}`
+              console.error(`❌ ${errorMsg}`)
+              reject(new Error(errorMsg))
+            }
+          })
+
+          xhr.addEventListener("error", (event) => {
+            clearTimeout(timeoutId)
+            console.error(`❌ Network error for ${file.name}:`, event)
+
+            // Try to provide more specific error information
+            let errorMessage = "Upload failed due to network error"
+
+            if (xhr.readyState === XMLHttpRequest.UNSENT) {
+              errorMessage = "Upload failed: Could not initiate request"
+            } else if (xhr.readyState === XMLHttpRequest.OPENED) {
+              errorMessage = "Upload failed: Connection could not be established"
+            } else if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+              errorMessage = "Upload failed: Server rejected the request"
+            } else if (xhr.readyState === XMLHttpRequest.LOADING) {
+              errorMessage = "Upload failed: Connection lost during upload"
+            }
+
+            // Add progress information if available
+            if (progressReported) {
+              errorMessage += " (upload was in progress)"
+            }
+
+            reject(new Error(errorMessage))
+          })
+
+          xhr.addEventListener("abort", () => {
+            clearTimeout(timeoutId)
+            reject(new Error("Upload was cancelled or timed out"))
+          })
+
+          // Add request headers for better compatibility
+          xhr.open("PUT", uploadUrl)
+          xhr.setRequestHeader("Content-Type", file.type)
+
+          // Add headers to prevent CORS issues
+          xhr.setRequestHeader("x-ms-blob-type", "BlockBlob")
+
+          console.log(`📡 Starting upload for ${file.name} (${Math.round(file.size / 1024)}KB)`)
+          xhr.send(file)
+        })
+
+        // If we get here, upload was successful
+        console.log(`✅ Upload completed for ${file.name}`)
+        return
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        console.error(`❌ Upload attempt ${attempt} failed for ${file.name}:`, lastError.message)
+
+        // If this isn't the last attempt, wait before retrying
+        if (attempt < maxRetries) {
+          // Exponential backoff: 2s, 4s, 8s
+          const delayMs = 2000 * Math.pow(2, attempt - 1)
+          console.log(`⏳ Waiting ${delayMs}ms before retry...`)
+          await new Promise((resolve) => setTimeout(resolve, delayMs))
         }
-      })
+      }
+    }
 
-      xhr.addEventListener("load", () => {
-        if (xhr.status === 200 || xhr.status === 201) {
-          resolve()
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`))
-        }
-      })
-
-      xhr.addEventListener("error", () => {
-        reject(new Error("Upload failed due to network error"))
-      })
-
-      xhr.addEventListener("abort", () => {
-        reject(new Error("Upload was aborted"))
-      })
-
-      xhr.open("PUT", uploadUrl)
-      xhr.setRequestHeader("Content-Type", file.type)
-      xhr.send(file)
-    })
+    // If all retries failed, throw the last error
+    throw new Error(
+      `Failed to upload ${file.name} after ${maxRetries} attempts: ${lastError?.message}`
+    )
   }
 
   // Create ZIP file from uploaded files
