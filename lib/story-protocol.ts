@@ -559,6 +559,23 @@ export async function mintAndRegisterIpAndMakeDerivative(params: {
   try {
     const client = getStoryClient()
 
+    // Story Protocol appears to have a limit on parent IPs per derivative call
+    // Based on production testing: 16 parent IPs succeed, 21+ parent IPs fail with 0xee461474
+    const MAX_PARENT_IPS = 16
+
+    if (params.parentIpIds.length > MAX_PARENT_IPS) {
+      console.warn(
+        `⚠️ [STORY] Warning: ${params.parentIpIds.length} parent IPs exceeds recommended limit of ${MAX_PARENT_IPS}`
+      )
+      console.warn(
+        `⚠️ [STORY] Using subset of first ${MAX_PARENT_IPS} parent IPs to avoid contract revert`
+      )
+      console.warn(`⚠️ [STORY] Full parent list: ${params.parentIpIds.join(", ")}`)
+
+      // Use only the first MAX_PARENT_IPS to avoid contract failure
+      params.parentIpIds = params.parentIpIds.slice(0, MAX_PARENT_IPS)
+    }
+
     // Create metadata URI
     const metadataJSON = JSON.stringify(params.metadata)
     const metadataURI = `data:application/json;base64,${Buffer.from(metadataJSON).toString(
@@ -600,6 +617,8 @@ export async function mintAndRegisterIpAndMakeDerivative(params: {
       ipId: serializedResponse.ipId,
       tokenId: serializedResponse.tokenId,
       txHash: serializedResponse.txHash,
+      parentIpsUsed: params.parentIpIds.length,
+      parentIpsTotal: params.parentIpIds.length,
     }
   } catch (error) {
     console.error("[STORY] Error minting and registering derivative IP:", error)
