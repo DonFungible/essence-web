@@ -60,7 +60,7 @@ export default function AssetsPage() {
   } = useStoryAssets({
     orderDirection: "desc",
     pagination: {
-      limit: 50,
+      limit: 100,
     },
   })
 
