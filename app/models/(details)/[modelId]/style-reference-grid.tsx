@@ -61,12 +61,6 @@ export default function StyleReferenceGrid({ images, modelName }: StyleReference
                 sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16vw"
                 className="object-cover group-hover:scale-105 transition-transform duration-200"
               />
-              {/* Overlay with image number for large sets */}
-              {images.length > 12 && (
-                <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
-                  {index + 1}
-                </div>
-              )}
               {/* IP Asset indicator for registered images */}
               {img.ipId && (
                 <div className="absolute top-2 right-2 text-white text-xs px-0 py-0 rounded flex items-center gap-1">

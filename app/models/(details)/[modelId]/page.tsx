@@ -106,11 +106,11 @@ export default function ModelPage({ params }: Props) {
   }
 
   return (
-    <div className="flex h-screen bg-slate-100">
+    <div className="flex min-h-screen bg-slate-100">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden relative">
+      <div className="flex-1 flex flex-col overflow-hidden relative bg-white">
         <TopBar />
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl pb-32">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-white rounded-tl-xl mb-48">
           <div className="max-w-7xl mx-auto">
             <header className="space-y-4 mb-8 relative">
               <div className="flex items-center">
