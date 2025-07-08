@@ -739,10 +739,39 @@ async function registerTrainedModelAsIP(
       })
 
       if (!modelResult.success) {
+        const errorMessage = "error" in modelResult ? modelResult.error : "Unknown error"
         console.error(
           `❌ [IP_REGISTRATION] Failed to register AI model as derivative:`,
-          modelResult.error
+          errorMessage
         )
+
+        // Check if error is related to license terms
+        if (errorMessage && typeof errorMessage === "string") {
+          if (errorMessage.includes("license terms") || errorMessage.includes("licenseTermsId")) {
+            console.error(
+              `🚨 [IP_REGISTRATION] LICENSE TERMS ERROR: Parent IP assets may not have required license terms attached.`
+            )
+            console.error(
+              `🚨 [IP_REGISTRATION] This usually means training images were registered without license terms.`
+            )
+            console.error(
+              `🚨 [IP_REGISTRATION] Solution: Re-register training images using mintAndRegisterIpWithPilTerms.`
+            )
+            console.error(
+              `🚨 [IP_REGISTRATION] Parent IPs needing license terms: ${registeredImageIPs.join(
+                ", "
+              )}`
+            )
+          } else if (errorMessage.includes("parent") || errorMessage.includes("derivative")) {
+            console.error(
+              `🚨 [IP_REGISTRATION] DERIVATIVE REGISTRATION ERROR: Issue with parent-child relationship.`
+            )
+            console.error(
+              `🚨 [IP_REGISTRATION] Check that parent IPs exist and are properly configured.`
+            )
+          }
+        }
+
         console.error(
           `❌ [IP_REGISTRATION] AI models must be derivatives of parent IP assets. No fallback to standalone registration.`
         )

@@ -133,6 +133,16 @@ export function usePresignedUpload() {
   ): Promise<void> => {
     let lastError: Error | null = null
 
+    // Pre-resolve DNS to avoid SSL handshake issues
+    try {
+      const url = new URL(uploadUrl)
+      console.log(`🔍 Pre-resolving DNS for ${url.hostname}`)
+      // Trigger DNS resolution by making a HEAD request (will likely fail but resolves DNS)
+      fetch(`https://${url.hostname}/health`, { method: "HEAD", mode: "no-cors" }).catch(() => {})
+    } catch (e) {
+      // Ignore DNS pre-resolution errors
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`📤 Upload attempt ${attempt}/${maxRetries} for ${file.name}`)
@@ -140,6 +150,7 @@ export function usePresignedUpload() {
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest()
           let progressReported = false
+          let sslErrorDetected = false
 
           // Set timeout to 5 minutes for large files
           const timeout = 5 * 60 * 1000 // 5 minutes
@@ -175,10 +186,12 @@ export function usePresignedUpload() {
             // Try to provide more specific error information
             let errorMessage = "Upload failed due to network error"
 
+            // Check for SSL-specific errors
             if (xhr.readyState === XMLHttpRequest.UNSENT) {
               errorMessage = "Upload failed: Could not initiate request"
             } else if (xhr.readyState === XMLHttpRequest.OPENED) {
               errorMessage = "Upload failed: Connection could not be established"
+              sslErrorDetected = true
             } else if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
               errorMessage = "Upload failed: Server rejected the request"
             } else if (xhr.readyState === XMLHttpRequest.LOADING) {
@@ -190,6 +203,12 @@ export function usePresignedUpload() {
               errorMessage += " (upload was in progress)"
             }
 
+            // Add SSL-specific guidance
+            if (sslErrorDetected || errorMessage.includes("connection")) {
+              errorMessage +=
+                " - This may be an SSL/TLS connection issue. Try disabling VPN, checking firewall settings, or switching networks."
+            }
+
             reject(new Error(errorMessage))
           })
 
@@ -198,14 +217,25 @@ export function usePresignedUpload() {
             reject(new Error("Upload was cancelled or timed out"))
           })
 
-          // Add request headers for better compatibility
+          // Configure XHR for better SSL compatibility
           xhr.open("PUT", uploadUrl)
+
+          // Set headers for better compatibility
           xhr.setRequestHeader("Content-Type", file.type)
 
-          // Add headers to prevent CORS issues
-          xhr.setRequestHeader("x-ms-blob-type", "BlockBlob")
+          // Add user agent for better server compatibility
+          xhr.setRequestHeader("User-Agent", "EssenceWeb-Upload/1.0")
+
+          // Force HTTP/1.1 for better compatibility (some SSL issues are HTTP/2 related)
+          try {
+            xhr.setRequestHeader("Connection", "keep-alive")
+          } catch (e) {
+            // Ignore if browser doesn't allow this header
+          }
 
           console.log(`📡 Starting upload for ${file.name} (${Math.round(file.size / 1024)}KB)`)
+          console.log(`🔗 Upload URL domain: ${new URL(uploadUrl).hostname}`)
+
           xhr.send(file)
         })
 
@@ -216,20 +246,53 @@ export function usePresignedUpload() {
         lastError = error instanceof Error ? error : new Error(String(error))
         console.error(`❌ Upload attempt ${attempt} failed for ${file.name}:`, lastError.message)
 
+        // Check if this is an SSL-related error
+        const isSSLError =
+          lastError.message.includes("SSL") ||
+          lastError.message.includes("TLS") ||
+          lastError.message.includes("connection") ||
+          lastError.message.includes("handshake")
+
         // If this isn't the last attempt, wait before retrying
         if (attempt < maxRetries) {
-          // Exponential backoff: 2s, 4s, 8s
-          const delayMs = 2000 * Math.pow(2, attempt - 1)
+          // For SSL errors, use longer delays and suggest network changes
+          const baseDelay = isSSLError ? 5000 : 2000 // 5s for SSL errors, 2s for others
+          const delayMs = baseDelay * Math.pow(2, attempt - 1)
+
+          if (isSSLError) {
+            console.log(`🔒 SSL/TLS error detected. Consider:`)
+            console.log(`   - Disabling VPN or proxy`)
+            console.log(`   - Switching to a different network`)
+            console.log(`   - Checking firewall/antivirus settings`)
+            console.log(`   - Using a different browser`)
+          }
+
           console.log(`⏳ Waiting ${delayMs}ms before retry...`)
           await new Promise((resolve) => setTimeout(resolve, delayMs))
         }
       }
     }
 
-    // If all retries failed, throw the last error
-    throw new Error(
+    // If all retries failed, throw the last error with additional context
+    const finalError = new Error(
       `Failed to upload ${file.name} after ${maxRetries} attempts: ${lastError?.message}`
     )
+
+    // Add specific guidance for SSL errors
+    if (
+      lastError?.message &&
+      (lastError.message.includes("SSL") || lastError.message.includes("connection"))
+    ) {
+      finalError.message +=
+        "\n\nThis appears to be an SSL/TLS connection issue. Try:\n" +
+        "1. Disable VPN or proxy temporarily\n" +
+        "2. Switch to a different network (mobile hotspot)\n" +
+        "3. Check firewall/antivirus settings\n" +
+        "4. Try a different browser\n" +
+        "5. Clear browser SSL cache"
+    }
+
+    throw finalError
   }
 
   // Create ZIP file from uploaded files

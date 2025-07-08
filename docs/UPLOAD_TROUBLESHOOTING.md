@@ -4,7 +4,13 @@ This guide helps diagnose and fix upload issues in the Essence Web training syst
 
 ## Quick Diagnosis
 
-Run the upload test script to quickly identify issues:
+**For ERR_SSL_BAD_RECORD_MAC_ALERT errors:**
+
+```bash
+pnpm test:ssl
+```
+
+**For general upload issues:**
 
 ```bash
 pnpm test:upload:full
@@ -12,7 +18,110 @@ pnpm test:upload:full
 
 ## Common Upload Errors
 
-### 1. "Upload failed due to network error"
+### 1. "ERR_SSL_BAD_RECORD_MAC_ALERT"
+
+**Symptoms:**
+
+- Browser shows ERR_SSL_BAD_RECORD_MAC_ALERT in network tab
+- Upload fails immediately or during transfer
+- May work intermittently or on different networks
+
+**This is an SSL/TLS Connection Issue**
+
+ERR_SSL_BAD_RECORD_MAC_ALERT is a specific SSL error that occurs when there's interference with the encrypted connection to Supabase storage during uploads.
+
+**Immediate Solutions (try these first):**
+
+#### A. Network Environment Changes
+
+1. **Disable VPN temporarily**
+
+   - VPNs often interfere with SSL connections
+   - Try uploading with VPN disconnected
+
+2. **Switch networks**
+
+   - Try mobile hotspot instead of WiFi
+   - Use different WiFi network if available
+   - Test from different location
+
+3. **Use different browser**
+   - Try Chrome, Firefox, Safari, or Edge
+   - Use incognito/private browsing mode
+   - Disable browser extensions temporarily
+
+#### B. Browser SSL Cache Issues
+
+1. **Clear browser SSL cache:**
+
+   - **Chrome:** Settings → Privacy and security → Clear browsing data → Cached images and files
+   - **Firefox:** Settings → Privacy & Security → Cookies and Site Data → Clear Data
+   - **Safari:** Develop → Empty Caches (or Settings → Privacy → Manage Website Data)
+
+2. **Reset browser network settings:**
+   - Chrome: Settings → Advanced → Reset and clean up → Restore settings
+   - Firefox: Help → Troubleshooting Information → Refresh Firefox
+
+#### C. System-Level Fixes
+
+1. **Flush DNS cache:**
+
+   ```bash
+   # Windows
+   ipconfig /flushdns
+
+   # macOS
+   sudo dscacheutil -flushcache
+
+   # Linux
+   sudo systemctl restart systemd-resolved
+   ```
+
+2. **Temporarily disable antivirus SSL scanning:**
+
+   - Many antivirus programs scan SSL traffic and can cause this error
+   - Temporarily disable HTTPS/SSL scanning in your antivirus settings
+
+3. **Check firewall settings:**
+   - Corporate firewalls often block or interfere with SSL connections
+   - Contact your network administrator if on a corporate network
+
+#### D. Test SSL Connectivity
+
+Run our SSL diagnostic tool:
+
+```bash
+pnpm test:ssl
+```
+
+This will test SSL connectivity to Supabase and identify specific issues.
+
+**Advanced Solutions:**
+
+#### If Basic Solutions Don't Work
+
+1. **Try uploading smaller files first**
+
+   - Large uploads are more likely to trigger SSL issues
+   - Test with 1-2 small images (< 1MB each)
+
+2. **Use different device**
+
+   - Test from mobile device on cellular data
+   - Try from different computer on same network
+
+3. **Contact network administrator**
+   - If on corporate network, ask about SSL inspection policies
+   - Request whitelisting of Supabase domains
+
+**Prevention:**
+
+- Avoid VPN during uploads
+- Use stable network connections
+- Keep browser updated
+- Regular SSL cache clearing
+
+### 2. "Upload failed due to network error"
 
 **Symptoms:**
 
@@ -132,6 +241,14 @@ pnpm test:upload:full
 
 ### Step 1: Test Basic Configuration
 
+**If you're seeing ERR_SSL_BAD_RECORD_MAC_ALERT:**
+
+```bash
+pnpm test:ssl
+```
+
+**For general upload issues:**
+
 ```bash
 pnpm test:upload:full
 ```
@@ -140,6 +257,7 @@ This will check:
 
 - Environment variables
 - Supabase connectivity
+- SSL/TLS connections
 - URL generation
 - File validation
 
@@ -224,6 +342,14 @@ curl -X PUT "YOUR_PRESIGNED_URL" \
 If issues persist after following this guide:
 
 1. **Run the diagnostic script:**
+
+   For SSL errors:
+
+   ```bash
+   pnpm test:ssl
+   ```
+
+   For general upload issues:
 
    ```bash
    pnpm test:upload:full

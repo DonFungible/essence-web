@@ -1,7 +1,11 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { mintAndRegisterIP, isStoryConfigured, getSPGNftContract } from "@/lib/story-protocol"
+import {
+  mintAndRegisterIpWithPilTerms,
+  isStoryConfigured,
+  getSPGNftContract,
+} from "@/lib/story-protocol"
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,12 +62,23 @@ export async function POST(req: NextRequest) {
         }
 
         // Register as IP asset on Story Protocol using backend wallet
-        const result = await mintAndRegisterIP({
+        const result = await mintAndRegisterIpWithPilTerms({
           spgNftContract: spgContract,
           metadata,
         })
 
         if (result.success) {
+          // Check if there was a license error (partial success)
+          if ("licenseError" in result) {
+            console.warn(
+              `[REGISTER IP BACKEND] ⚠️ IP registered but license attachment failed: ${result.licenseError}`
+            )
+          } else {
+            console.log(
+              `[REGISTER IP BACKEND] ✅ Registered IP with license terms for ${image.original_filename}: ${result.ipId}`
+            )
+          }
+
           // Update database with Story Protocol information
           const { error: updateError } = await supabase
             .from("training_images")
@@ -86,9 +101,6 @@ export async function POST(req: NextRequest) {
             })
             failureCount++
           } else {
-            console.log(
-              `[REGISTER IP BACKEND] ✅ Registered IP for ${image.original_filename}: ${result.ipId}`
-            )
             results.push({
               imageId: image.id,
               filename: image.original_filename,
@@ -96,6 +108,7 @@ export async function POST(req: NextRequest) {
               ipId: result.ipId,
               tokenId: result.tokenId,
               txHash: result.txHash,
+              licenseWarning: "licenseError" in result ? result.licenseError : undefined,
             })
             successCount++
           }
@@ -108,15 +121,16 @@ export async function POST(req: NextRequest) {
             })
             .eq("id", image.id)
 
+          const errorMsg = "error" in result ? result.error : "Unknown registration error"
           console.error(
             `[REGISTER IP BACKEND] ❌ Failed to register IP for ${image.original_filename}:`,
-            result.error
+            errorMsg
           )
           results.push({
             imageId: image.id,
             filename: image.original_filename,
             success: false,
-            error: result.error,
+            error: errorMsg,
           })
           failureCount++
         }

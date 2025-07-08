@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 import {
   mintAndRegisterIP,
+  mintAndRegisterIpWithPilTerms,
   isStoryConfigured,
   getSPGNftContract,
   registerDerivativeIP,
@@ -376,7 +377,7 @@ export async function POST(req: NextRequest) {
               ],
             }
 
-            const ipResult = await mintAndRegisterIP({
+            const ipResult = await mintAndRegisterIpWithPilTerms({
               spgNftContract: spgContract,
               metadata,
             })
@@ -387,9 +388,18 @@ export async function POST(req: NextRequest) {
               txHash = ipResult.txHash
               registrationStatus = "registered"
               parentIpIds.push(ipResult.ipId!)
-              console.log(`✅ IP registered successfully: ${ipResult.ipId}`)
+
+              // Check if there was a license error (partial success)
+              if ("licenseError" in ipResult) {
+                console.warn(
+                  `⚠️ IP registered but license attachment failed: ${ipResult.licenseError}`
+                )
+              } else {
+                console.log(`✅ IP registered successfully with license terms: ${ipResult.ipId}`)
+              }
             } else {
-              console.error(`❌ Failed to register IP:`, ipResult.error)
+              const errorMsg = "error" in ipResult ? ipResult.error : "Unknown registration error"
+              console.error(`❌ Failed to register IP:`, errorMsg)
               registrationStatus = "failed"
             }
           } catch (error) {
