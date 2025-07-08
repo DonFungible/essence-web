@@ -149,15 +149,7 @@ export async function startTrainingJobOptimized(data: {
 
     let webhookUrl: string
     const tunnelUrl = process.env.REPLICATE_WEBHOOK_TUNNEL_URL
-    if (process.env.NODE_ENV === "development" && tunnelUrl) {
-      webhookUrl = `${tunnelUrl}/api/replicate-webhook`
-    } else {
-      const headersList = await headers() // Correct usage of headers
-      const host = headersList.get("host")
-      if (!host) throw new Error("Could not determine host for webhook URL.")
-      const protocol = host.startsWith("localhost") ? "http" : "https"
-      webhookUrl = `${protocol}://${host}/api/replicate-webhook`
-    }
+    webhookUrl = `${tunnelUrl}/api/replicate-webhook`
     console.log(`[TRAIN_ACTION] Using webhook URL: ${webhookUrl}`)
 
     // Submit to Replicate
