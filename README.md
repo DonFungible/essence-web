@@ -1,5 +1,5 @@
 # Essence
-Create a licensable AI model on your licensed IP. 
+Create licensable AI models on your licensed IP. 
 
 Stack: 
 - NextJS
